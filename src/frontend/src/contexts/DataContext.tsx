@@ -20,6 +20,7 @@ interface DataContextType {
   updateAccount: (id: string, acc: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
   addSale: (sale: Omit<Sale, "id" | "invoiceNumber">) => Sale;
+  deleteSale: (id: string) => void;
   deductStock: (items: { medicineId: string; quantity: number }[]) => void;
   addPurchaseRecord: (
     record: Omit<PurchaseRecord, "id">,
@@ -157,6 +158,22 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
     [salesKey],
   );
 
+  const deleteSale = useCallback((id: string) => {
+    setSales((prev) => {
+      const sale = prev.find((s) => s.id === id);
+      if (sale) {
+        setMedicines((meds) =>
+          meds.map((med) => {
+            const item = sale.items.find((i) => i.medicineId === med.id);
+            if (item) return { ...med, quantity: med.quantity + item.quantity };
+            return med;
+          }),
+        );
+      }
+      return prev.filter((s) => s.id !== id);
+    });
+  }, []);
+
   const deductStock = useCallback(
     (items: { medicineId: string; quantity: number }[]) => {
       setMedicines((prev) =>
@@ -204,6 +221,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         updateAccount,
         deleteAccount,
         addSale,
+        deleteSale,
         deductStock,
         addPurchaseRecord,
       }}

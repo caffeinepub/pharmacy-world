@@ -1,44 +1,33 @@
 # Pharmacy World
 
 ## Current State
-- Single-pharmacy pharmacy management system with admin and client roles
-- Login page shows Demo Credentials box with hardcoded admin/admin123 and cashier1/cash123
-- All data stored in a single localStorage namespace (pw_medicines, pw_accounts, pw_sales, pw_purchases)
-- Admin can create client accounts but cannot create another admin
-- No password change feature
-- No multi-pharmacy isolation
+- Multi-pharmacy POS system with admin/cashier roles
+- Sales history page shows invoices with view (eye icon) button
+- InvoiceModal handles screen view + print
+- DataContext has addSale, deductStock, addPurchaseRecord -- but NO deleteSale or restoreStock
+- Sale type has no patientName / patientPhone fields
+- Print goes directly without asking for patient info
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Super Admin role**: A master account (superadmin) that can create and manage multiple pharmacies
-- **Pharmacy management**: Super admin can create pharmacy records (name, address, phone). Each pharmacy gets its own isolated data namespace in localStorage (e.g. `ph_{pharmacyId}_medicines`, `ph_{pharmacyId}_accounts`, etc.)
-- **Per-pharmacy admin account**: When creating a pharmacy, super admin sets the pharmacy admin username and password
-- **Create Admin option**: Pharmacy admin can also create another admin account (role: "admin") in addition to client accounts
-- **Change Password**: Any logged-in user (admin or client) can change their own password via a "Change Password" option in the sidebar user area
-- **Super Admin panel**: Separate page listing all pharmacies with ability to create/delete them
-- **Pharmacy-scoped login**: On login page, show a "Select Pharmacy" dropdown or show pharmacy name from URL param. Each pharmacy's data is completely isolated
+- `deleteSale` function in DataContext that removes a sale AND restores stock for all items in that sale
+- Delete button in History page (admin only) -- with confirmation dialog
+- Patient info dialog that appears before print -- fields: Patient Name (optional), Patient Phone (optional)
+- Patient name and phone shown on printed invoice and screen invoice preview if provided
 
 ### Modify
-- **Login page**: Remove Demo Credentials box completely
-- **AccountFormModal**: Add role dropdown (client / admin) so pharmacy admin can create either role
-- **DataContext**: Scope all localStorage keys to active pharmacy ID (passed via context or URL)
-- **Layout sidebar**: Add "Change Password" button in user area. Show pharmacy name dynamically from active pharmacy config
-- **Seed data**: Remove hardcoded seed accounts (admin/admin123, cashier1/cash123). On first run, show super admin setup or pharmacy selection
+- `Sale` type: add optional `patientName?: string` and `patientPhone?: string` fields
+- DataContext: expose `deleteSale(id: string)` which removes sale and calls restoreStock internally
+- InvoiceModal: before triggering print window, show a small dialog asking for patient name/phone; after confirm, print with those details
+- InvoiceModal screen view: show patient name/phone row if present
+- History page: add delete button (Trash2 icon) in the Invoice column for admin role; show confirm dialog before delete
 
 ### Remove
-- Demo Credentials hardcoded box from LoginPage
-- Hardcoded "United Pharmacy" text in Layout (make it dynamic from selected pharmacy)
+- Nothing removed
 
 ## Implementation Plan
-
-1. Add `Pharmacy` and `SuperAdmin` types
-2. Create SuperAdmin context/state using localStorage key `pw_superadmin` and `pw_pharmacies`
-3. On first app load: if no superadmin exists, show SuperAdmin Setup page (create master username+password)
-4. Super admin can create pharmacies -- each pharmacy stores: id, name, address, phone, adminUsername, adminPassword
-5. DataContext: accept pharmacyId prop, prefix all keys with `ph_{pharmacyId}_`
-6. Login flow: user first selects pharmacy from list, then enters credentials. Pharmacy admin + clients stored in `ph_{id}_accounts`
-7. Remove Demo Credentials box from LoginPage
-8. AccountFormModal: add role selector (client / admin) -- pharmacy admin can create both
-9. Layout: show current pharmacy name from context; add Change Password dialog in user area
-10. Change Password: validates old password, updates account in accounts list and also updates logged-in user in localStorage
+1. Update `Sale` type to add patientName and patientPhone optional fields
+2. Add `deleteSale` to DataContextType interface and implement it in DataProvider (removes sale, restores stock quantities)
+3. Update HistoryPage: import useAuth, show Trash2 delete button for admin, show confirmation AlertDialog before calling deleteSale
+4. Update InvoiceModal: add patient info state + a pre-print dialog (PatientInfoDialog) that shows before print; pass patientName/patientPhone into print HTML and screen view

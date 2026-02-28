@@ -5,8 +5,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Printer, X } from "lucide-react";
+import { Phone, Printer, User, X } from "lucide-react";
+import { useState } from "react";
 import type { Sale } from "../types";
 
 interface InvoiceModalProps {
@@ -16,9 +19,22 @@ interface InvoiceModalProps {
 }
 
 export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
+  const [showPatientDialog, setShowPatientDialog] = useState(false);
+  const [patientName, setPatientName] = useState(sale?.patientName || "");
+  const [patientPhone, setPatientPhone] = useState(sale?.patientPhone || "");
+
+  // Sync state when sale changes
+  const handleOpenChange = (o: boolean) => {
+    if (!o) {
+      onClose();
+      setShowPatientDialog(false);
+    }
+  };
+
   if (!sale) return null;
 
-  const handlePrint = () => {
+  const handlePrint = (pName: string, pPhone: string) => {
+    setShowPatientDialog(false);
     const printWindow = window.open("", "_blank", "width=800,height=600");
     if (!printWindow) return;
 
@@ -58,6 +74,14 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
            </div>`
         : "";
 
+    const patientRow =
+      pName || pPhone
+        ? `<div style="border-bottom:1px solid #e5e7eb;padding:6px 0;margin-bottom:8px;font-size:0.78rem">
+            <span style="color:#6b7280">Patient: </span><strong>${pName || "—"}</strong>
+            <span style="margin-left:12px;color:#6b7280">Phone: </span><strong>${pPhone || "—"}</strong>
+          </div>`
+        : "";
+
     printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
@@ -82,6 +106,8 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
     <div><span style="color:#6b7280">Time: </span><strong>${formatT(sale.date)}</strong></div>
     <div style="text-align:right"><span style="color:#6b7280">Sold by: </span><strong>${sale.soldByName}</strong></div>
   </div>
+
+  ${patientRow}
 
   <table style="width:100%;font-size:0.78rem;border-collapse:collapse;margin-bottom:12px">
     <thead>
@@ -143,7 +169,7 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
   return (
     <>
       {/* Screen version */}
-      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <Dialog open={open && !showPatientDialog} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-lg flex flex-col max-h-[90vh] p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle className="sr-only">Invoice</DialogTitle>
@@ -158,9 +184,88 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
               <X className="w-4 h-4" />
               Close
             </Button>
-            <Button onClick={handlePrint} className="gap-2">
+            <Button
+              onClick={() => {
+                setPatientName(sale.patientName || "");
+                setPatientPhone(sale.patientPhone || "");
+                setShowPatientDialog(true);
+              }}
+              className="gap-2"
+            >
               <Printer className="w-4 h-4" />
               Print Invoice
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Patient Info Dialog */}
+      <Dialog
+        open={showPatientDialog}
+        onOpenChange={(o) => !o && setShowPatientDialog(false)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <User className="w-4 h-4 text-primary" />
+              Patient Information
+              <span className="text-xs font-normal text-muted-foreground ml-1">
+                (Optional)
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            Add patient details to appear on the printed invoice.
+          </p>
+
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <User className="w-3 h-3" />
+                Patient Name
+              </Label>
+              <Input
+                placeholder="e.g. Muhammad Ali"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Phone className="w-3 h-3" />
+                Phone Number
+              </Label>
+              <Input
+                placeholder="e.g. 0311-4187399"
+                value={patientPhone}
+                onChange={(e) => setPatientPhone(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex gap-2 justify-end pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePrint("", "")}
+              className="text-xs"
+            >
+              Skip & Print
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                handlePrint(patientName.trim(), patientPhone.trim())
+              }
+              className="gap-1.5 text-xs"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print with Details
             </Button>
           </div>
         </DialogContent>
@@ -238,6 +343,33 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
             <strong>{sale.soldByName}</strong>
           </div>
         </div>
+
+        {/* Patient info (shown when viewing saved invoice) */}
+        {(sale.patientName || sale.patientPhone) && (
+          <div
+            style={{
+              borderBottom: "1px solid #e5e7eb",
+              padding: "6px 0",
+              marginBottom: "8px",
+              fontSize: "0.78rem",
+            }}
+          >
+            {sale.patientName && (
+              <>
+                <span style={{ color: "#6b7280" }}>Patient: </span>
+                <strong>{sale.patientName}</strong>
+              </>
+            )}
+            {sale.patientPhone && (
+              <>
+                <span style={{ marginLeft: "12px", color: "#6b7280" }}>
+                  Phone:{" "}
+                </span>
+                <strong>{sale.patientPhone}</strong>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Items table */}
         <table

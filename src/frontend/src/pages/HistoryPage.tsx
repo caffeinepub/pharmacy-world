@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,15 +34,19 @@ import {
   ReceiptText,
   ShoppingCart,
   Tag,
+  Trash2,
   TrendingUp,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { InvoiceModal } from "../components/InvoiceModal";
+import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
 import type { Sale } from "../types";
 
 export function HistoryPage() {
-  const { sales, accounts } = useData();
+  const { sales, accounts, deleteSale } = useData();
+  const { currentUser } = useAuth();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -68,6 +83,11 @@ export function HistoryPage() {
     setToDate("");
     setSoldByFilter("all");
     setMedSearch("");
+  };
+
+  const handleDeleteSale = (saleId: string) => {
+    deleteSale(saleId);
+    toast.success("Invoice deleted and stock restored");
   };
 
   const totalRevenue = filtered.reduce((s, sale) => s + sale.total, 0);
@@ -240,7 +260,7 @@ export function HistoryPage() {
                   Total
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-center">
-                  Invoice
+                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -265,7 +285,20 @@ export function HistoryPage() {
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDateTime(sale.date)}
                     </TableCell>
-                    <TableCell className="text-sm">{sale.soldByName}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>{sale.soldByName}</div>
+                      {(sale.patientName || sale.patientPhone) && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {sale.patientName && <span>{sale.patientName}</span>}
+                          {sale.patientName && sale.patientPhone && (
+                            <span> · </span>
+                          )}
+                          {sale.patientPhone && (
+                            <span>{sale.patientPhone}</span>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary" className="text-xs">
                         {sale.items.length}
@@ -284,14 +317,51 @@ export function HistoryPage() {
                       Rs.{sale.total.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setSelectedSale(sale)}
-                        className="h-7 w-7 p-0"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedSale(sale)}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        {currentUser?.role === "admin" && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete Invoice?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete invoice{" "}
+                                  <strong>{sale.invoiceNumber}</strong> and
+                                  restore stock for all {sale.items.length}{" "}
+                                  item(s). This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteSale(sale.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete & Restore Stock
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

@@ -53,6 +53,8 @@ export interface Sale {
   subtotal: number;
   discount: number;
   total: number;
+  patientName?: string;
+  patientPhone?: string;
 }
 
 export interface PurchaseRecord {
