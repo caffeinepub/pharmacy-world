@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/PlusJakartaSans[wght].woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Blue pharmacy theme */
+    --background: 0.98 0.005 250;
+    --foreground: 0.18 0.04 255;
+
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.04 255;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.04 255;
+
+    /* Primary: Professional Blue */
+    --primary: 0.52 0.18 255;
+    --primary-foreground: 0.99 0 0;
+
+    /* Secondary: Light blue-gray */
+    --secondary: 0.94 0.03 255;
+    --secondary-foreground: 0.35 0.08 255;
+
+    /* Muted: Very light blue-gray */
+    --muted: 0.96 0.01 255;
+    --muted-foreground: 0.55 0.04 255;
+
+    /* Accent: Slightly deeper blue-gray */
+    --accent: 0.92 0.05 255;
+    --accent-foreground: 0.30 0.10 255;
+
+    /* Destructive: Red */
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.88 0.03 255;
+    --input: 0.90 0.03 255;
+    --ring: 0.52 0.18 255;
+
+    /* Status colors */
+    --success: 0.56 0.15 160;
+    --success-foreground: 0.98 0 0;
+    --warning: 0.72 0.17 80;
+    --warning-foreground: 0.15 0.02 80;
+
+    /* Charts */
+    --chart-1: 0.52 0.18 255;
+    --chart-2: 0.56 0.15 160;
+    --chart-3: 0.72 0.17 80;
+    --chart-4: 0.55 0.22 25;
+    --chart-5: 0.60 0.12 300;
+
+    /* Sidebar */
+    --sidebar: 0.22 0.07 255;
+    --sidebar-foreground: 0.92 0.02 255;
+    --sidebar-primary: 0.65 0.15 255;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.30 0.08 255;
+    --sidebar-accent-foreground: 0.95 0.02 255;
+    --sidebar-border: 0.28 0.06 255;
+    --sidebar-ring: 0.52 0.18 255;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-success {
+    color: oklch(var(--success));
+  }
+  .bg-success {
+    background-color: oklch(var(--success));
+  }
+  .text-success-foreground {
+    color: oklch(var(--success-foreground));
+  }
+  .text-warning {
+    color: oklch(var(--warning));
+  }
+  .bg-warning {
+    background-color: oklch(var(--warning));
+  }
+  .text-warning-foreground {
+    color: oklch(var(--warning-foreground));
+  }
+  .border-success {
+    border-color: oklch(var(--success));
+  }
+  .border-warning {
+    border-color: oklch(var(--warning));
+  }
+}
+
+
