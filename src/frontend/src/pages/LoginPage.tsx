@@ -2,32 +2,56 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate } from "@tanstack/react-router";
-import { AlertCircle, Lock, Pill, User } from "lucide-react";
-import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { AlertCircle, Building2, Lock, Pill, User } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
+import { useSuperAdmin } from "../contexts/SuperAdminContext";
 
 export function LoginPage() {
   const { login } = useAuth();
   const { accounts } = useData();
+  const { pharmacies } = useSuperAdmin();
   const navigate = useNavigate();
 
+  const [selectedPharmacyId, setSelectedPharmacyId] = useState<string>(() => {
+    return localStorage.getItem("pw_selected_pharmacy") ?? "";
+  });
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Sync selected pharmacy to localStorage and trigger DataProvider reload
+  useEffect(() => {
+    if (selectedPharmacyId) {
+      localStorage.setItem("pw_selected_pharmacy", selectedPharmacyId);
+    }
+  }, [selectedPharmacyId]);
+
+  const selectedPharmacy = pharmacies.find((p) => p.id === selectedPharmacyId);
+
   const handleLogin = async () => {
     setError("");
+    if (!selectedPharmacyId) {
+      setError("Please select a pharmacy first");
+      return;
+    }
     if (!username.trim() || !password) {
       setError("Please enter username and password");
       return;
     }
 
     setLoading(true);
-    // Simulate brief loading
     await new Promise((r) => setTimeout(r, 400));
 
     const account = accounts.find((a) => a.username === username.trim());
@@ -52,6 +76,8 @@ export function LoginPage() {
     if (e.key === "Enter") handleLogin();
   };
 
+  const displayName = selectedPharmacy?.name ?? "Pharmacy World";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -60,7 +86,7 @@ export function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4 shadow-lg">
             <Pill className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Pharmacy World</h1>
+          <h1 className="text-2xl font-bold text-foreground">{displayName}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Professional Pharmacy Management System
           </p>
@@ -80,6 +106,45 @@ export function LoginPage() {
               </div>
             )}
 
+            {/* Pharmacy Selector */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pharmacy-select">Select Pharmacy</Label>
+              {pharmacies.length === 0 ? (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 text-center">
+                  <Building2 className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">
+                    No pharmacies registered.{" "}
+                    <Link
+                      to="/superadmin/login"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Set up master admin
+                    </Link>{" "}
+                    to create one.
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={selectedPharmacyId}
+                  onValueChange={setSelectedPharmacyId}
+                >
+                  <SelectTrigger id="pharmacy-select">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                      <SelectValue placeholder="Choose a pharmacy..." />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pharmacies.map((ph) => (
+                      <SelectItem key={ph.id} value={ph.id}>
+                        {ph.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="username">Username</Label>
               <div className="relative">
@@ -92,6 +157,7 @@ export function LoginPage() {
                   onKeyDown={handleKeyDown}
                   className="pl-9"
                   autoFocus
+                  disabled={!selectedPharmacyId}
                 />
               </div>
             </div>
@@ -108,26 +174,26 @@ export function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="pl-9"
+                  disabled={!selectedPharmacyId}
                 />
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleLogin} disabled={loading}>
+            <Button
+              className="w-full"
+              onClick={handleLogin}
+              disabled={loading || !selectedPharmacyId}
+            >
               {loading ? "Signing in..." : "Sign In"}
             </Button>
 
-            <div className="bg-muted rounded-lg p-3 text-xs space-y-1">
-              <p className="font-semibold text-muted-foreground">
-                Demo Credentials:
-              </p>
-              <p className="text-muted-foreground">
-                Admin: <span className="font-mono font-medium">admin</span> /{" "}
-                <span className="font-mono font-medium">admin123</span>
-              </p>
-              <p className="text-muted-foreground">
-                Cashier: <span className="font-mono font-medium">cashier1</span>{" "}
-                / <span className="font-mono font-medium">cash123</span>
-              </p>
+            <div className="pt-2 border-t border-border text-center">
+              <Link
+                to="/superadmin/login"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Super Admin Login
+              </Link>
             </div>
           </CardContent>
         </Card>

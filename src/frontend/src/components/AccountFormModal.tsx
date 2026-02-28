@@ -8,6 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useData } from "../contexts/DataContext";
@@ -21,6 +28,7 @@ interface FormData {
   fullName: string;
   username: string;
   password: string;
+  role: "admin" | "client";
 }
 
 export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
@@ -29,18 +37,19 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
     fullName: "",
     username: "",
     password: "",
+    role: "client",
   });
-  const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [errors, setErrors] = useState<Partial<Omit<FormData, "role">>>({});
 
   useEffect(() => {
     if (open) {
-      setForm({ fullName: "", username: "", password: "" });
+      setForm({ fullName: "", username: "", password: "", role: "client" });
       setErrors({});
     }
   }, [open]);
 
   const validate = (): boolean => {
-    const newErrors: Partial<FormData> = {};
+    const newErrors: Partial<Omit<FormData, "role">> = {};
     if (!form.fullName.trim()) newErrors.fullName = "Required";
     if (!form.username.trim()) newErrors.username = "Required";
     else if (accounts.some((a) => a.username === form.username.trim()))
@@ -58,7 +67,7 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
       fullName: form.fullName.trim(),
       username: form.username.trim(),
       password: form.password,
-      role: "client",
+      role: form.role,
       enabled: true,
     });
     toast.success(`Account for ${form.fullName.trim()} created`);
@@ -69,7 +78,7 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Create Client Account</DialogTitle>
+          <DialogTitle>Create Account</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -120,6 +129,24 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
             {errors.password && (
               <p className="text-xs text-destructive">{errors.password}</p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="role">Role *</Label>
+            <Select
+              value={form.role}
+              onValueChange={(v: "admin" | "client") =>
+                setForm((p) => ({ ...p, role: v }))
+              }
+            >
+              <SelectTrigger id="role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="client">Client (Cashier)</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

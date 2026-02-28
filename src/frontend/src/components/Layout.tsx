@@ -1,18 +1,33 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  AlertCircle,
   History,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
   Pill,
+  ShoppingBag,
   ShoppingCart,
   Users,
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
+import { useData } from "../contexts/DataContext";
+import { useSuperAdmin } from "../contexts/SuperAdminContext";
 
 const navItems = [
   {
@@ -45,17 +60,73 @@ const navItems = [
     icon: History,
     adminOnly: false,
   },
+  {
+    label: "Purchases",
+    path: "/purchases",
+    icon: ShoppingBag,
+    adminOnly: true,
+  },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, login } = useAuth();
+  const { updateAccount } = useData();
+  const { pharmacies } = useSuperAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+
+  // Resolve current pharmacy name dynamically
+  const selectedPharmacyId = localStorage.getItem("pw_selected_pharmacy") ?? "";
+  const currentPharmacy = pharmacies.find((p) => p.id === selectedPharmacyId);
+  const pharmacyName = currentPharmacy?.name ?? "Pharmacy World";
 
   const visibleNav = navItems.filter(
     (item) => !item.adminOnly || currentUser?.role === "admin",
   );
+
+  // ---- Change Password logic ----
+  const [cpCurrent, setCpCurrent] = useState("");
+  const [cpNew, setCpNew] = useState("");
+  const [cpConfirm, setCpConfirm] = useState("");
+  const [cpErrors, setCpErrors] = useState<Record<string, string>>({});
+  const [cpLoading, setCpLoading] = useState(false);
+
+  const openChangePw = () => {
+    setCpCurrent("");
+    setCpNew("");
+    setCpConfirm("");
+    setCpErrors({});
+    setChangePwOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    const e: Record<string, string> = {};
+    if (!cpCurrent) e.current = "Current password is required";
+    else if (cpCurrent !== currentUser?.password)
+      e.current = "Current password is incorrect";
+    if (!cpNew) e.newPw = "New password is required";
+    else if (cpNew.length < 4) e.newPw = "Minimum 4 characters";
+    if (!cpConfirm) e.confirm = "Please confirm new password";
+    else if (cpNew !== cpConfirm) e.confirm = "Passwords do not match";
+    setCpErrors(e);
+    if (Object.keys(e).length > 0) return;
+
+    setCpLoading(true);
+    await new Promise((r) => setTimeout(r, 300));
+
+    if (currentUser) {
+      updateAccount(currentUser.id, { password: cpNew });
+      // Update stored session with new password
+      const updated = { ...currentUser, password: cpNew };
+      localStorage.setItem("pw_currentUser", JSON.stringify(updated));
+      login(updated);
+    }
+    toast.success("Password changed successfully");
+    setChangePwOpen(false);
+    setCpLoading(false);
+  };
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -65,8 +136,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Pill className="w-5 h-5 text-sidebar-primary" />
         </div>
         <div>
-          <p className="font-bold text-sidebar-foreground text-sm leading-none">
-            Pharmacy World
+          <p className="font-bold text-sidebar-foreground text-sm leading-none truncate max-w-[130px]">
+            {pharmacyName}
           </p>
           <p className="text-xs text-sidebar-foreground/60 mt-0.5">
             Management System
@@ -114,6 +185,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           size="sm"
+          onClick={openChangePw}
+          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent text-xs mb-1"
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          Change Password
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={logout}
           className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent text-xs"
         >
@@ -155,8 +235,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
           <div className="flex items-center gap-2">
             <Pill className="w-5 h-5 text-sidebar-primary" />
-            <span className="font-bold text-sidebar-foreground text-sm">
-              Pharmacy World
+            <span className="font-bold text-sidebar-foreground text-sm truncate max-w-[160px]">
+              {pharmacyName}
             </span>
           </div>
           <button
@@ -187,6 +267,87 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </a>
         </footer>
       </div>
+
+      {/* Change Password Dialog */}
+      <Dialog
+        open={changePwOpen}
+        onOpenChange={(o) => !o && setChangePwOpen(false)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary" />
+              Change Password
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-current">Current Password *</Label>
+              <Input
+                id="cp-current"
+                type="password"
+                placeholder="Enter current password"
+                value={cpCurrent}
+                onChange={(e) => setCpCurrent(e.target.value)}
+                className={cpErrors.current ? "border-destructive" : ""}
+                autoFocus
+              />
+              {cpErrors.current && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.current}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-new">New Password *</Label>
+              <Input
+                id="cp-new"
+                type="password"
+                placeholder="Minimum 4 characters"
+                value={cpNew}
+                onChange={(e) => setCpNew(e.target.value)}
+                className={cpErrors.newPw ? "border-destructive" : ""}
+              />
+              {cpErrors.newPw && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.newPw}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-confirm">Confirm New Password *</Label>
+              <Input
+                id="cp-confirm"
+                type="password"
+                placeholder="Re-enter new password"
+                value={cpConfirm}
+                onChange={(e) => setCpConfirm(e.target.value)}
+                className={cpErrors.confirm ? "border-destructive" : ""}
+              />
+              {cpErrors.confirm && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.confirm}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChangePwOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={cpLoading}>
+              {cpLoading ? "Saving..." : "Change Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

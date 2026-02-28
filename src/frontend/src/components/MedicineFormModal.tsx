@@ -8,6 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useData } from "../contexts/DataContext";
@@ -23,7 +30,8 @@ interface FormData {
   name: string;
   category: string;
   manufacturer: string;
-  price: string;
+  purchasePrice: string;
+  retailPrice: string;
   quantity: string;
   expiryDate: string;
   lowStockThreshold: string;
@@ -33,11 +41,22 @@ const EMPTY_FORM: FormData = {
   name: "",
   category: "",
   manufacturer: "",
-  price: "",
+  purchasePrice: "",
+  retailPrice: "",
   quantity: "",
   expiryDate: "",
   lowStockThreshold: "10",
 };
+
+const RACK_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const RACK_NUMBERS = Array.from({ length: 10 }, (_, i) => String(i + 1));
+
+function parseRack(rackNumber?: string) {
+  if (!rackNumber || rackNumber.length < 2) return { letter: "", num: "" };
+  const letter = rackNumber[0];
+  const num = rackNumber.slice(1);
+  return { letter, num };
+}
 
 export function MedicineFormModal({
   open,
@@ -47,24 +66,32 @@ export function MedicineFormModal({
   const { addMedicine, updateMedicine } = useData();
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [rackLetter, setRackLetter] = useState("");
+  const [rackNum, setRackNum] = useState("");
 
-  // Using a key approach: when open changes or medicine changes, reset the form
-  // We track a reset counter tied to open state
   const openRef = open ? 1 : 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: openRef is derived from open prop to trigger reset
   useEffect(() => {
     if (medicine) {
+      const pp = medicine.purchasePrice ?? medicine.price;
+      const rp = medicine.retailPrice ?? medicine.price;
       setForm({
         name: medicine.name,
         category: medicine.category,
         manufacturer: medicine.manufacturer,
-        price: String(medicine.price),
+        purchasePrice: String(pp),
+        retailPrice: String(rp),
         quantity: String(medicine.quantity),
         expiryDate: medicine.expiryDate,
         lowStockThreshold: String(medicine.lowStockThreshold),
       });
+      const parsed = parseRack(medicine.rackNumber);
+      setRackLetter(parsed.letter);
+      setRackNum(parsed.num);
     } else {
       setForm(EMPTY_FORM);
+      setRackLetter("");
+      setRackNum("");
     }
     setErrors({});
   }, [medicine, openRef]);
@@ -75,9 +102,12 @@ export function MedicineFormModal({
     if (!form.category.trim()) newErrors.category = "Required";
     if (!form.manufacturer.trim()) newErrors.manufacturer = "Required";
     if (!form.expiryDate) newErrors.expiryDate = "Required";
-    const price = Number(form.price);
-    if (!form.price || Number.isNaN(price) || price <= 0)
-      newErrors.price = "Must be > 0";
+    const pp = Number(form.purchasePrice);
+    if (!form.purchasePrice || Number.isNaN(pp) || pp < 0)
+      newErrors.purchasePrice = "Must be >= 0";
+    const rp = Number(form.retailPrice);
+    if (!form.retailPrice || Number.isNaN(rp) || rp <= 0)
+      newErrors.retailPrice = "Must be > 0";
     const qty = Number(form.quantity);
     if (form.quantity === "" || Number.isNaN(qty) || qty < 0)
       newErrors.quantity = "Must be >= 0";
@@ -88,14 +118,22 @@ export function MedicineFormModal({
   const handleSubmit = () => {
     if (!validate()) return;
 
+    const rackNumber =
+      rackLetter && rackNum ? `${rackLetter}${rackNum}` : undefined;
+    const pp = Number(form.purchasePrice);
+    const rp = Number(form.retailPrice);
+
     const data = {
       name: form.name.trim(),
       category: form.category.trim(),
       manufacturer: form.manufacturer.trim(),
-      price: Number(form.price),
+      purchasePrice: pp,
+      retailPrice: rp,
+      price: rp, // keep price in sync with retailPrice
       quantity: Number(form.quantity),
       expiryDate: form.expiryDate,
       lowStockThreshold: Number(form.lowStockThreshold) || 10,
+      rackNumber,
     };
 
     if (medicine) {
@@ -128,9 +166,14 @@ export function MedicineFormModal({
     </div>
   );
 
+  // compute margin
+  const pp = Number(form.purchasePrice);
+  const rp = Number(form.retailPrice);
+  const margin = pp > 0 && rp > 0 ? (((rp - pp) / pp) * 100).toFixed(1) : null;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {medicine ? "Edit Medicine" : "Add New Medicine"}
@@ -143,10 +186,85 @@ export function MedicineFormModal({
           </div>
           {field("category", "Category *", "text", "e.g. Analgesic")}
           {field("manufacturer", "Manufacturer *", "text", "e.g. GSK")}
-          {field("price", "Price per Unit ($) *", "number", "0.00")}
-          {field("quantity", "Quantity *", "number", "0")}
+
+          {/* Price section */}
+          <div className="col-span-2">
+            <div className="grid grid-cols-2 gap-3">
+              {field(
+                "purchasePrice",
+                "Purchase Price (Rs.) *",
+                "number",
+                "0.00",
+              )}
+              {field(
+                "retailPrice",
+                "Retail/Sale Price (Rs.) *",
+                "number",
+                "0.00",
+              )}
+            </div>
+            {margin !== null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Margin:{" "}
+                <span
+                  className={
+                    Number(margin) >= 0
+                      ? "text-emerald-600 font-semibold"
+                      : "text-destructive font-semibold"
+                  }
+                >
+                  {margin}%
+                </span>{" "}
+                profit per unit
+              </p>
+            )}
+          </div>
+
+          {field("quantity", "Opening Quantity *", "number", "0")}
           {field("expiryDate", "Expiry Date *", "date")}
           {field("lowStockThreshold", "Low Stock Alert", "number", "10")}
+
+          {/* Rack Number */}
+          <div className="col-span-2 space-y-1.5">
+            <Label>Rack Number (Optional)</Label>
+            <div className="flex gap-2 items-center">
+              <Select value={rackLetter} onValueChange={setRackLetter}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Letter (A-Z)" />
+                </SelectTrigger>
+                <SelectContent className="max-h-48">
+                  {RACK_LETTERS.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={rackNum} onValueChange={setRackNum}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Num (1-10)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RACK_NUMBERS.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {rackLetter && rackNum && (
+                <div className="flex items-center justify-center min-w-[3rem] h-10 rounded-md border border-border bg-primary/10 font-bold text-primary text-sm px-2">
+                  {rackLetter}
+                  {rackNum}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rack location jahan yeh medicine rakhi hai, e.g. A1, B3
+            </p>
+          </div>
         </div>
 
         <DialogFooter>

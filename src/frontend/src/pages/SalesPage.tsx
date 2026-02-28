@@ -189,13 +189,20 @@ export function SalesPage() {
                         <p className="text-sm font-semibold text-foreground truncate">
                           {med.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {med.category}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-xs text-muted-foreground">
+                            {med.category}
+                          </p>
+                          {med.rackNumber && (
+                            <span className="inline-flex items-center px-1.5 py-0 rounded text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                              {med.rackNumber}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold text-primary">
-                          ${med.price.toFixed(2)}
+                          Rs. {med.price.toFixed(2)}
                         </p>
                         <Badge
                           className={`text-xs ${
@@ -284,11 +291,11 @@ export function SalesPage() {
                       </button>
                     </div>
                     <p className="text-sm font-bold text-primary">
-                      ${(item.unitPrice * item.quantity).toFixed(2)}
+                      Rs. {(item.unitPrice * item.quantity).toFixed(2)}
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    ${item.unitPrice.toFixed(2)} × {item.quantity}
+                    Rs. {item.unitPrice.toFixed(2)} × {item.quantity}
                   </p>
                 </div>
               ))
@@ -302,7 +309,7 @@ export function SalesPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">
-                    ${cartSubtotal.toFixed(2)}
+                    Rs. {cartSubtotal.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -312,7 +319,7 @@ export function SalesPage() {
                   htmlFor="discount"
                   className="text-sm text-muted-foreground whitespace-nowrap"
                 >
-                  Discount ($)
+                  Discount (Rs.)
                 </Label>
                 <Input
                   id="discount"
@@ -328,7 +335,7 @@ export function SalesPage() {
               {discountAmt > 0 && (
                 <div className="flex justify-between text-sm text-success">
                   <span>Discount</span>
-                  <span>-${discountAmt.toFixed(2)}</span>
+                  <span>-Rs. {discountAmt.toFixed(2)}</span>
                 </div>
               )}
 
@@ -336,7 +343,7 @@ export function SalesPage() {
 
               <div className="flex justify-between font-bold text-base">
                 <span>Total</span>
-                <span className="text-primary">${cartTotal.toFixed(2)}</span>
+                <span className="text-primary">Rs. {cartTotal.toFixed(2)}</span>
               </div>
 
               <Button

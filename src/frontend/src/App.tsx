@@ -7,20 +7,46 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { useState } from "react";
 import { Layout } from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider } from "./contexts/DataContext";
+import {
+  SuperAdminProvider,
+  useSuperAdmin,
+} from "./contexts/SuperAdminContext";
 import { AccountsPage } from "./pages/AccountsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PurchasesPage } from "./pages/PurchasesPage";
 import { SalesPage } from "./pages/SalesPage";
+import { SuperAdminDashboardPage } from "./pages/SuperAdminDashboardPage";
+import { SuperAdminLoginPage } from "./pages/SuperAdminLoginPage";
+import { SuperAdminSetupPage } from "./pages/SuperAdminSetupPage";
+
+// ---- Smart Root Redirect ----
+
+function RootRedirect() {
+  const { isSuperAdminSetup, pharmacies } = useSuperAdmin();
+
+  if (!isSuperAdminSetup) {
+    return <Navigate to="/superadmin/setup" />;
+  }
+  if (pharmacies.length === 0) {
+    return <Navigate to="/superadmin/dashboard" />;
+  }
+  return <Navigate to="/login" />;
+}
 
 // ---- Auth Guard Wrappers ----
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading } = useAuth();
+  const { pharmacies } = useSuperAdmin();
+  const selectedPharmacyId = localStorage.getItem("pw_selected_pharmacy") ?? "";
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -32,6 +58,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     );
   }
   if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+  if (
+    !selectedPharmacyId ||
+    !pharmacies.find((p) => p.id === selectedPharmacyId)
+  ) {
     return <Navigate to="/login" />;
   }
   return <Layout>{children}</Layout>;
@@ -54,10 +86,24 @@ function RequireGuest({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RequireSuperAdminGuest({ children }: { children: React.ReactNode }) {
+  const { isLoggedInAsSuperAdmin } = useSuperAdmin();
+  if (isLoggedInAsSuperAdmin) {
+    return <Navigate to="/superadmin/dashboard" />;
+  }
+  return <>{children}</>;
+}
+
 // ---- Routes ----
 
 const rootRoute = createRootRoute({
   component: Outlet,
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: RootRedirect,
 });
 
 const loginRoute = createRoute({
@@ -68,6 +114,28 @@ const loginRoute = createRoute({
       <LoginPage />
     </RequireGuest>
   ),
+});
+
+const superAdminSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/superadmin/setup",
+  component: SuperAdminSetupPage,
+});
+
+const superAdminLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/superadmin/login",
+  component: () => (
+    <RequireSuperAdminGuest>
+      <SuperAdminLoginPage />
+    </RequireSuperAdminGuest>
+  ),
+});
+
+const superAdminDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/superadmin/dashboard",
+  component: SuperAdminDashboardPage,
 });
 
 const dashboardRoute = createRoute({
@@ -124,20 +192,30 @@ const historyRoute = createRoute({
   ),
 });
 
-const indexRoute = createRoute({
+const purchasesRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/",
-  component: () => <Navigate to="/dashboard" />,
+  path: "/purchases",
+  component: () => (
+    <RequireAuth>
+      <RequireAdmin>
+        <PurchasesPage />
+      </RequireAdmin>
+    </RequireAuth>
+  ),
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  superAdminSetupRoute,
+  superAdminLoginRoute,
+  superAdminDashboardRoute,
   dashboardRoute,
   inventoryRoute,
   accountsRoute,
   salesRoute,
   historyRoute,
+  purchasesRoute,
 ]);
 
 const router = createRouter({ routeTree });
@@ -148,15 +226,26 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// ---- DataProvider with dynamic pharmacyId ----
+
+function DataProviderWrapper({ children }: { children: React.ReactNode }) {
+  const [pharmacyId] = useState<string>(
+    () => localStorage.getItem("pw_selected_pharmacy") ?? "__none__",
+  );
+  return <DataProvider pharmacyId={pharmacyId}>{children}</DataProvider>;
+}
+
 // ---- App Root ----
 
 export default function App() {
   return (
-    <DataProvider>
-      <AuthProvider>
-        <RouterProvider router={router} />
-        <Toaster position="top-right" richColors />
-      </AuthProvider>
-    </DataProvider>
+    <SuperAdminProvider>
+      <DataProviderWrapper>
+        <AuthProvider>
+          <RouterProvider router={router} />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
+      </DataProviderWrapper>
+    </SuperAdminProvider>
   );
 }

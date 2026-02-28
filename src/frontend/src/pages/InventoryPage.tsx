@@ -26,10 +26,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  PackagePlus,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ExcelImportModal } from "../components/ExcelImportModal";
 import { MedicineFormModal } from "../components/MedicineFormModal";
+import { PurchaseStockModal } from "../components/PurchaseStockModal";
 import { useData } from "../contexts/DataContext";
 import type { Medicine } from "../types";
 
@@ -40,6 +49,9 @@ export function InventoryPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<Medicine | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [purchaseMed, setPurchaseMed] = useState<Medicine | null>(null);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const categories = Array.from(
     new Set(medicines.map((m) => m.category)),
@@ -83,6 +95,11 @@ export function InventoryPage() {
     setModalOpen(true);
   };
 
+  const openPurchase = (med: Medicine) => {
+    setPurchaseMed(med);
+    setPurchaseOpen(true);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -93,10 +110,20 @@ export function InventoryPage() {
             {medicines.reduce((s, m) => s + m.quantity, 0)} total units
           </p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Medicine
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            className="gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Import Excel
+          </Button>
+          <Button onClick={openAdd} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Add Medicine
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -141,12 +168,18 @@ export function InventoryPage() {
                   Manufacturer
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-right">
-                  Price
+                  Purchase Price
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-right">
+                  Retail Price
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-center">
                   Qty
                 </TableHead>
                 <TableHead className="text-xs font-semibold">Expiry</TableHead>
+                <TableHead className="text-xs font-semibold text-center">
+                  Rack
+                </TableHead>
                 <TableHead className="text-xs font-semibold text-center">
                   Actions
                 </TableHead>
@@ -156,7 +189,7 @@ export function InventoryPage() {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={9}
                     className="text-center py-10 text-muted-foreground text-sm"
                   >
                     No medicines found
@@ -166,6 +199,8 @@ export function InventoryPage() {
                 filtered.map((med) => {
                   const expiryStatus = getExpiryStatus(med.expiryDate);
                   const isLow = med.quantity <= med.lowStockThreshold;
+                  const pp = med.purchasePrice ?? med.price;
+                  const rp = med.retailPrice ?? med.price;
                   return (
                     <TableRow key={med.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium text-sm">
@@ -179,8 +214,11 @@ export function InventoryPage() {
                       <TableCell className="text-sm text-muted-foreground">
                         {med.manufacturer}
                       </TableCell>
-                      <TableCell className="text-sm text-right font-mono">
-                        ${med.price.toFixed(2)}
+                      <TableCell className="text-sm text-right font-mono text-muted-foreground">
+                        Rs.{pp.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-sm text-right font-mono font-semibold">
+                        Rs.{rp.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center">
                         <span
@@ -208,13 +246,34 @@ export function InventoryPage() {
                           {expiryStatus === "soon" && " (Soon)"}
                         </span>
                       </TableCell>
+                      <TableCell className="text-center">
+                        {med.rackNumber ? (
+                          <span className="inline-flex items-center justify-center min-w-[2.2rem] px-2 py-0.5 rounded-md text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                            {med.rackNumber}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openPurchase(med)}
+                            className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            title="Add Stock (Purchase)"
+                          >
+                            <PackagePlus className="w-3.5 h-3.5" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => openEdit(med)}
                             className="h-7 w-7 p-0"
+                            title="Edit Medicine"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
@@ -223,6 +282,7 @@ export function InventoryPage() {
                             variant="ghost"
                             onClick={() => setDeleteId(med.id)}
                             className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Delete Medicine"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -242,6 +302,20 @@ export function InventoryPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         medicine={editingMed}
+      />
+
+      <PurchaseStockModal
+        open={purchaseOpen}
+        onClose={() => {
+          setPurchaseOpen(false);
+          setPurchaseMed(null);
+        }}
+        medicine={purchaseMed}
+      />
+
+      <ExcelImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
       />
 
       <AlertDialog

@@ -6,13 +6,13 @@ import {
   useEffect,
   useState,
 } from "react";
-import { SEED_ACCOUNTS, SEED_MEDICINES } from "../lib/seedData";
-import type { Account, Medicine, Sale } from "../types";
+import type { Account, Medicine, PurchaseRecord, Sale } from "../types";
 
 interface DataContextType {
   medicines: Medicine[];
   accounts: Account[];
   sales: Sale[];
+  purchaseRecords: PurchaseRecord[];
   addMedicine: (med: Omit<Medicine, "id">) => void;
   updateMedicine: (id: string, med: Partial<Medicine>) => void;
   deleteMedicine: (id: string) => void;
@@ -21,6 +21,10 @@ interface DataContextType {
   deleteAccount: (id: string) => void;
   addSale: (sale: Omit<Sale, "id" | "invoiceNumber">) => Sale;
   deductStock: (items: { medicineId: string; quantity: number }[]) => void;
+  addPurchaseRecord: (
+    record: Omit<PurchaseRecord, "id">,
+    addQuantity: number,
+  ) => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -45,48 +49,58 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [medicines, setMedicines] = useState<Medicine[]>(() => {
-    const stored = localStorage.getItem("pw_medicines");
-    if (!stored) {
-      saveToStorage("pw_medicines", SEED_MEDICINES);
-      return SEED_MEDICINES;
-    }
-    try {
-      return JSON.parse(stored) as Medicine[];
-    } catch {
-      return SEED_MEDICINES;
-    }
-  });
+interface DataProviderProps {
+  children: React.ReactNode;
+  pharmacyId: string;
+}
 
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const stored = localStorage.getItem("pw_accounts");
-    if (!stored) {
-      saveToStorage("pw_accounts", SEED_ACCOUNTS);
-      return SEED_ACCOUNTS;
-    }
-    try {
-      return JSON.parse(stored) as Account[];
-    } catch {
-      return SEED_ACCOUNTS;
-    }
-  });
+export function DataProvider({ children, pharmacyId }: DataProviderProps) {
+  const medicinesKey = `ph_${pharmacyId}_medicines`;
+  const accountsKey = `ph_${pharmacyId}_accounts`;
+  const salesKey = `ph_${pharmacyId}_sales`;
+  const purchasesKey = `ph_${pharmacyId}_purchases`;
 
-  const [sales, setSales] = useState<Sale[]>(() =>
-    loadFromStorage<Sale>("pw_sales", []),
+  const [medicines, setMedicines] = useState<Medicine[]>(() =>
+    loadFromStorage<Medicine>(medicinesKey, []),
   );
 
+  const [accounts, setAccounts] = useState<Account[]>(() =>
+    loadFromStorage<Account>(accountsKey, []),
+  );
+
+  const [sales, setSales] = useState<Sale[]>(() =>
+    loadFromStorage<Sale>(salesKey, []),
+  );
+
+  const [purchaseRecords, setPurchaseRecords] = useState<PurchaseRecord[]>(() =>
+    loadFromStorage<PurchaseRecord>(purchasesKey, []),
+  );
+
+  // Re-load when pharmacyId changes
   useEffect(() => {
-    saveToStorage("pw_medicines", medicines);
-  }, [medicines]);
+    setMedicines(loadFromStorage<Medicine>(`ph_${pharmacyId}_medicines`, []));
+    setAccounts(loadFromStorage<Account>(`ph_${pharmacyId}_accounts`, []));
+    setSales(loadFromStorage<Sale>(`ph_${pharmacyId}_sales`, []));
+    setPurchaseRecords(
+      loadFromStorage<PurchaseRecord>(`ph_${pharmacyId}_purchases`, []),
+    );
+  }, [pharmacyId]);
 
   useEffect(() => {
-    saveToStorage("pw_accounts", accounts);
-  }, [accounts]);
+    saveToStorage(medicinesKey, medicines);
+  }, [medicines, medicinesKey]);
 
   useEffect(() => {
-    saveToStorage("pw_sales", sales);
-  }, [sales]);
+    saveToStorage(accountsKey, accounts);
+  }, [accounts, accountsKey]);
+
+  useEffect(() => {
+    saveToStorage(salesKey, sales);
+  }, [sales, salesKey]);
+
+  useEffect(() => {
+    saveToStorage(purchasesKey, purchaseRecords);
+  }, [purchaseRecords, purchasesKey]);
 
   const addMedicine = useCallback((med: Omit<Medicine, "id">) => {
     const newMed: Medicine = { ...med, id: generateId() };
@@ -126,7 +140,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     (saleData: Omit<Sale, "id" | "invoiceNumber">): Sale => {
       const today = new Date();
       const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-      const todaySales = sales.filter((s) =>
+      const storedSales = loadFromStorage<Sale>(salesKey, []);
+      const todaySales = storedSales.filter((s) =>
         s.date.startsWith(today.toISOString().slice(0, 10)),
       );
       const count = todaySales.length + 1;
@@ -139,7 +154,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setSales((prev) => [...prev, newSale]);
       return newSale;
     },
-    [sales],
+    [salesKey],
   );
 
   const deductStock = useCallback(
@@ -160,12 +175,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const addPurchaseRecord = useCallback(
+    (record: Omit<PurchaseRecord, "id">, addQuantity: number) => {
+      const newRecord: PurchaseRecord = { ...record, id: generateId() };
+      setPurchaseRecords((prev) => [...prev, newRecord]);
+      setMedicines((prev) =>
+        prev.map((med) =>
+          med.id === record.medicineId
+            ? { ...med, quantity: med.quantity + addQuantity }
+            : med,
+        ),
+      );
+    },
+    [],
+  );
+
   return (
     <DataContext.Provider
       value={{
         medicines,
         accounts,
         sales,
+        purchaseRecords,
         addMedicine,
         updateMedicine,
         deleteMedicine,
@@ -174,6 +205,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         deleteAccount,
         addSale,
         deductStock,
+        addPurchaseRecord,
       }}
     >
       {children}

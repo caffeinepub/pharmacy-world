@@ -18,91 +18,87 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Eye,
-  History,
+  BadgePercent,
+  PackagePlus,
   ReceiptText,
-  ShoppingCart,
+  ShoppingBag,
   Tag,
-  TrendingUp,
+  TrendingDown,
+  User,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { InvoiceModal } from "../components/InvoiceModal";
 import { useData } from "../contexts/DataContext";
-import type { Sale } from "../types";
 
-export function HistoryPage() {
-  const { sales, accounts } = useData();
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+export function PurchasesPage() {
+  const { purchaseRecords, accounts } = useData();
+
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [soldByFilter, setSoldByFilter] = useState("all");
   const [medSearch, setMedSearch] = useState("");
+  const [addedByFilter, setAddedByFilter] = useState("all");
 
   const filtered = useMemo(() => {
-    return [...sales]
+    return [...purchaseRecords]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .filter((sale) => {
-        const saleDate = sale.date.slice(0, 10);
-        if (fromDate && saleDate < fromDate) return false;
-        if (toDate && saleDate > toDate) return false;
-        if (soldByFilter !== "all" && sale.soldBy !== soldByFilter)
-          return false;
+      .filter((rec) => {
+        const recDate = rec.date.slice(0, 10);
+        if (fromDate && recDate < fromDate) return false;
+        if (toDate && recDate > toDate) return false;
         if (
           medSearch &&
-          !sale.items.some((item) =>
-            item.medicineName.toLowerCase().includes(medSearch.toLowerCase()),
-          )
+          !rec.medicineName.toLowerCase().includes(medSearch.toLowerCase())
         )
+          return false;
+        if (addedByFilter !== "all" && rec.addedBy !== addedByFilter)
           return false;
         return true;
       });
-  }, [sales, fromDate, toDate, soldByFilter, medSearch]);
+  }, [purchaseRecords, fromDate, toDate, medSearch, addedByFilter]);
 
   const formatDateTime = (iso: string) => {
     const d = new Date(iso);
-    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    return `${d.toLocaleDateString("en-PK")} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   };
 
   const resetFilters = () => {
     setFromDate("");
     setToDate("");
-    setSoldByFilter("all");
     setMedSearch("");
+    setAddedByFilter("all");
   };
 
-  const totalRevenue = filtered.reduce((s, sale) => s + sale.total, 0);
+  const totalUnits = filtered.reduce((s, r) => s + r.quantity, 0);
+  const totalSpent = filtered.reduce((s, r) => s + r.totalCost, 0);
   const totalDiscount = filtered.reduce(
-    (s, sale) => s + (sale.discount || 0),
+    (s, r) => s + r.discountAmount * r.quantity,
     0,
   );
-  const totalItems = filtered.reduce(
-    (s, sale) => s + sale.items.reduce((si, item) => si + item.quantity, 0),
-    0,
-  );
-  const avgSale = filtered.length > 0 ? totalRevenue / filtered.length : 0;
+  const uniqueMedicines = new Set(filtered.map((r) => r.medicineId)).size;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Sales History</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Purchase History
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {filtered.length} sales · Total Revenue: Rs.
-            {totalRevenue.toFixed(2)}
+            {filtered.length} purchase records · Total Spent: Rs.
+            {totalSpent.toFixed(0)}
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground">
-          <History className="w-4 h-4" />
-          <span className="text-sm">{sales.length} total</span>
+          <ShoppingBag className="w-4 h-4" />
+          <span className="text-sm">{purchaseRecords.length} total</span>
         </div>
       </div>
 
-      {/* Sales Summary Report */}
+      {/* Summary Cards */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center gap-2 mb-3">
           <ReceiptText className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">
-            Sale Summary Report
+            Purchase Summary Report
           </h2>
           {(fromDate || toDate) && (
             <span className="text-xs text-muted-foreground">
@@ -117,43 +113,43 @@ export function HistoryPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-primary/8 rounded-lg p-3 flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-primary">
-              <ReceiptText className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Total Invoices</span>
+              <PackagePlus className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Total Records</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
               {filtered.length}
             </p>
-            <p className="text-xs text-muted-foreground">invoices</p>
-          </div>
-          <div className="bg-emerald-500/8 rounded-lg p-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-emerald-600">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Total Revenue</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">
-              Rs.{totalRevenue.toFixed(0)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              avg Rs.{avgSale.toFixed(0)}/sale
-            </p>
+            <p className="text-xs text-muted-foreground">purchases</p>
           </div>
           <div className="bg-blue-500/8 rounded-lg p-3 flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-blue-600">
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Items Sold</span>
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Units Purchased</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{totalItems}</p>
-            <p className="text-xs text-muted-foreground">units</p>
+            <p className="text-2xl font-bold text-foreground">{totalUnits}</p>
+            <p className="text-xs text-muted-foreground">
+              {uniqueMedicines} medicines
+            </p>
           </div>
-          <div className="bg-orange-500/8 rounded-lg p-3 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-orange-600">
+          <div className="bg-rose-500/8 rounded-lg p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-rose-600">
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Total Spent</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">
+              Rs.{totalSpent.toFixed(0)}
+            </p>
+            <p className="text-xs text-muted-foreground">net after discount</p>
+          </div>
+          <div className="bg-emerald-500/8 rounded-lg p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-emerald-600">
               <Tag className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Total Discount</span>
+              <span className="text-xs font-medium">Discount Saved</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
               Rs.{totalDiscount.toFixed(0)}
             </p>
-            <p className="text-xs text-muted-foreground">given</p>
+            <p className="text-xs text-muted-foreground">total saved</p>
           </div>
         </div>
       </div>
@@ -180,8 +176,8 @@ export function HistoryPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Sold By</Label>
-            <Select value={soldByFilter} onValueChange={setSoldByFilter}>
+            <Label className="text-xs">Added By</Label>
+            <Select value={addedByFilter} onValueChange={setAddedByFilter}>
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue placeholder="All accounts" />
               </SelectTrigger>
@@ -205,7 +201,7 @@ export function HistoryPage() {
             />
           </div>
         </div>
-        {(fromDate || toDate || soldByFilter !== "all" || medSearch) && (
+        {(fromDate || toDate || addedByFilter !== "all" || medSearch) && (
           <Button
             variant="ghost"
             size="sm"
@@ -224,23 +220,28 @@ export function HistoryPage() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">
-                  Invoice #
+                  Date / Time
                 </TableHead>
                 <TableHead className="text-xs font-semibold">
-                  Date/Time
+                  Medicine
                 </TableHead>
-                <TableHead className="text-xs font-semibold">Sold By</TableHead>
                 <TableHead className="text-xs font-semibold text-center">
-                  Items
+                  Qty
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-right">
+                  Purchase Price
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-center">
                   Discount
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-right">
-                  Total
+                  Net Price/Unit
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-center">
-                  Invoice
+                <TableHead className="text-xs font-semibold text-right">
+                  Total Cost
+                </TableHead>
+                <TableHead className="text-xs font-semibold">
+                  Added By
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -248,50 +249,52 @@ export function HistoryPage() {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-10 text-muted-foreground text-sm"
                   >
-                    {sales.length === 0
-                      ? "No sales recorded yet."
-                      : "No sales match your filters."}
+                    {purchaseRecords.length === 0
+                      ? "Koi purchase record nahi hai. Inventory se 'Add Stock' karein."
+                      : "No records match your filters."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((sale) => (
-                  <TableRow key={sale.id} className="hover:bg-muted/30">
-                    <TableCell className="text-xs font-mono font-semibold text-primary">
-                      {sale.invoiceNumber}
+                filtered.map((rec) => (
+                  <TableRow key={rec.id} className="hover:bg-muted/30">
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatDateTime(rec.date)}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDateTime(sale.date)}
+                    <TableCell>
+                      <p className="text-sm font-medium">{rec.medicineName}</p>
                     </TableCell>
-                    <TableCell className="text-sm">{sale.soldByName}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary" className="text-xs">
-                        {sale.items.length}
+                        {rec.quantity}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-right font-mono">
-                      {sale.discount > 0 ? (
-                        <span className="text-success">
-                          -Rs.{sale.discount.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm font-bold text-right font-mono">
-                      Rs.{sale.total.toFixed(2)}
+                    <TableCell className="text-right text-xs font-mono">
+                      Rs.{rec.purchasePrice.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setSelectedSale(sale)}
-                        className="h-7 w-7 p-0"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
+                      {rec.discountPercent > 0 ? (
+                        <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
+                          <BadgePercent className="w-3 h-3" />
+                          {rec.discountPercent}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono font-semibold">
+                      Rs.{rec.netPurchasePrice.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-bold font-mono text-primary">
+                      Rs.{rec.totalCost.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs">{rec.addedByName}</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -300,12 +303,6 @@ export function HistoryPage() {
           </Table>
         </div>
       </div>
-
-      <InvoiceModal
-        sale={selectedSale}
-        open={!!selectedSale}
-        onClose={() => setSelectedSale(null)}
-      />
     </div>
   );
 }

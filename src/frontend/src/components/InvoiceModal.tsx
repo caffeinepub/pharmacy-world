@@ -45,8 +45,8 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
           <td style="padding:5px 8px;color:#6b7280">${idx + 1}</td>
           <td style="padding:5px 8px">${item.medicineName}</td>
           <td style="padding:5px 8px;text-align:center">${item.quantity}</td>
-          <td style="padding:5px 8px;text-align:right">$${item.unitPrice.toFixed(2)}</td>
-          <td style="padding:5px 8px;text-align:right">$${item.subtotal.toFixed(2)}</td>
+          <td style="padding:5px 8px;text-align:right">Rs. ${item.unitPrice.toFixed(2)}</td>
+          <td style="padding:5px 8px;text-align:right">Rs. ${item.subtotal.toFixed(2)}</td>
         </tr>`,
       )
       .join("");
@@ -54,7 +54,7 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
     const discountRow =
       sale.discount > 0
         ? `<div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;color:#16a34a">
-            <span>Discount</span><span>-$${sale.discount.toFixed(2)}</span>
+            <span>Discount</span><span>-Rs. ${sale.discount.toFixed(2)}</span>
            </div>`
         : "";
 
@@ -69,9 +69,10 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
   </style>
 </head>
 <body>
-  <div style="text-align:center;margin-bottom:1rem">
-    <div style="font-size:1.4rem;font-weight:800;letter-spacing:0.05em;color:#1e40af">✚ PHARMACY WORLD</div>
-    <div style="font-size:0.8rem;color:#6b7280;margin-top:2px">Professional Pharmacy Management</div>
+    <div style="text-align:center;margin-bottom:1rem">
+    <div style="font-size:1.4rem;font-weight:800;letter-spacing:0.05em;color:#1e40af">✚ UNITED PHARMACY</div>
+    <div style="font-size:0.75rem;color:#6b7280;margin-top:2px">208 Road Near Kashmir Pull, United Hospital, Faisalabad</div>
+    <div style="font-size:0.75rem;color:#6b7280;margin-top:2px">Phone: 0311-4187399</div>
     <div style="display:inline-block;background:#dbeafe;color:#1e40af;padding:2px 12px;border-radius:20px;font-size:0.7rem;font-weight:600;margin-top:8px">TAX INVOICE</div>
   </div>
 
@@ -97,16 +98,23 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
 
   <div style="border-top:2px solid #dbeafe;padding-top:10px">
     <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px">
-      <span style="color:#6b7280">Subtotal</span><span>$${sale.subtotal.toFixed(2)}</span>
+      <span style="color:#6b7280">Subtotal</span><span>Rs. ${sale.subtotal.toFixed(2)}</span>
     </div>
     ${discountRow}
     <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#1e40af">
-      <span>TOTAL</span><span>$${sale.total.toFixed(2)}</span>
+      <span>TOTAL</span><span>Rs. ${sale.total.toFixed(2)}</span>
     </div>
   </div>
 
   <div style="text-align:center;margin-top:2rem;font-size:0.8rem;color:#666">
     <p>Thank you for your purchase!</p>
+  </div>
+
+  <div style="margin-top:1rem;border-top:1px dashed #d1d5db;padding-top:10px;font-size:0.7rem;color:#6b7280">
+    <div style="font-weight:700;color:#dc2626;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.03em">Return Policy</div>
+    <div style="margin-bottom:3px">&#9679; Medicines can be returned within <strong>7 days</strong> of purchase. Returns will not be accepted after 7 days.</div>
+    <div style="margin-bottom:3px">&#9679; Original bill / invoice is <strong>mandatory</strong> for all returns.</div>
+    <div style="color:#dc2626;font-weight:600">&#9679; Refrigerated / cold-chain items are strictly <strong>non-returnable and non-exchangeable</strong>.</div>
   </div>
 
   <script>window.onload = function(){ window.print(); window.onafterprint = function(){ window.close(); }; }</script>
@@ -136,16 +144,16 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
     <>
       {/* Screen version */}
       <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-lg flex flex-col max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle className="sr-only">Invoice</DialogTitle>
           </DialogHeader>
 
-          <div className="invoice-screen">
+          <div className="flex-1 overflow-y-auto px-6 pb-2">
             <InvoiceContent sale={sale} />
           </div>
 
-          <div className="flex gap-2 justify-end pt-2">
+          <div className="flex gap-2 justify-end px-6 py-4 border-t bg-background shrink-0">
             <Button variant="outline" onClick={onClose} className="gap-2">
               <X className="w-4 h-4" />
               Close
@@ -173,12 +181,17 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
               color: "#1e40af",
             }}
           >
-            ✚ PHARMACY WORLD
+            ✚ UNITED PHARMACY
           </div>
           <div
-            style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "2px" }}
+            style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "2px" }}
           >
-            Professional Pharmacy Management
+            208 Road Near Kashmir Pull, United Hospital, Faisalabad
+          </div>
+          <div
+            style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "2px" }}
+          >
+            Phone: 0311-4187399
           </div>
           <div
             style={{
@@ -301,10 +314,10 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
                   {item.quantity}
                 </td>
                 <td style={{ padding: "5px 8px", textAlign: "right" }}>
-                  ${item.unitPrice.toFixed(2)}
+                  Rs. {item.unitPrice.toFixed(2)}
                 </td>
                 <td style={{ padding: "5px 8px", textAlign: "right" }}>
-                  ${item.subtotal.toFixed(2)}
+                  Rs. {item.subtotal.toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -327,7 +340,7 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
             }}
           >
             <span style={{ color: "#6b7280" }}>Subtotal</span>
-            <span>${sale.subtotal.toFixed(2)}</span>
+            <span>Rs. {sale.subtotal.toFixed(2)}</span>
           </div>
           {sale.discount > 0 && (
             <div
@@ -340,7 +353,7 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
               }}
             >
               <span>Discount</span>
-              <span>-${sale.discount.toFixed(2)}</span>
+              <span>-Rs. {sale.discount.toFixed(2)}</span>
             </div>
           )}
           <div
@@ -356,7 +369,42 @@ export function InvoiceModal({ sale, open, onClose }: InvoiceModalProps) {
             }}
           >
             <span>TOTAL</span>
-            <span>${sale.total.toFixed(2)}</span>
+            <span>Rs. {sale.total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Return Policy */}
+        <div
+          style={{
+            marginTop: "1rem",
+            borderTop: "1px dashed #d1d5db",
+            paddingTop: "10px",
+            fontSize: "0.68rem",
+            color: "#6b7280",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: "700",
+              color: "#dc2626",
+              marginBottom: "4px",
+              textTransform: "uppercase",
+              letterSpacing: "0.03em",
+            }}
+          >
+            Return Policy
+          </div>
+          <div style={{ marginBottom: "3px" }}>
+            &bull; Medicines can be returned within <strong>7 days</strong> of
+            purchase. Returns will not be accepted after 7 days.
+          </div>
+          <div style={{ marginBottom: "3px" }}>
+            &bull; Original bill / invoice is <strong>mandatory</strong> for all
+            returns.
+          </div>
+          <div style={{ color: "#dc2626", fontWeight: "600" }}>
+            &bull; Refrigerated / cold-chain items are strictly{" "}
+            <strong>non-returnable and non-exchangeable</strong>.
           </div>
         </div>
       </div>

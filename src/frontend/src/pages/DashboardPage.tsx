@@ -64,7 +64,7 @@ export function DashboardPage() {
     },
     {
       label: "Today's Revenue",
-      value: `$${totalRevenue.toFixed(2)}`,
+      value: `Rs. ${totalRevenue.toFixed(2)}`,
       icon: DollarSign,
       color: "text-primary",
       bg: "bg-primary/10",
@@ -193,7 +193,7 @@ export function DashboardPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-right">
-                        ${sale.total.toFixed(2)}
+                        Rs. {sale.total.toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))}
