@@ -22,11 +22,14 @@ interface PurchaseStockModalProps {
 }
 
 interface FormData {
-  quantity: string;
   purchasePrice: string;
   discountPercent: string;
   purchaseDate: string;
 }
+
+type EntryMode = "tablets" | "boxes";
+
+const COMMON_BOX_SIZES = [10, 14, 15, 20, 28, 30, 60, 100];
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -41,38 +44,65 @@ export function PurchaseStockModal({
   const { currentUser } = useAuth();
 
   const [form, setForm] = useState<FormData>({
-    quantity: "",
     purchasePrice: "",
     discountPercent: "0",
     purchaseDate: todayStr(),
   });
-  const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+
+  // Quantity entry state
+  const [entryMode, setEntryMode] = useState<EntryMode>("tablets");
+  const [tabletQty, setTabletQty] = useState("");
+  const [boxQty, setBoxQty] = useState("");
+  const [tabletsPerBox, setTabletsPerBox] = useState("30");
+  const [customTabletsPerBox, setCustomTabletsPerBox] = useState("");
+  const [useCustomPerBox, setUseCustomPerBox] = useState(false);
 
   const openRef = open ? 1 : 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: openRef triggers reset
   useEffect(() => {
     if (open && medicine) {
       setForm({
-        quantity: "",
         purchasePrice: String(medicine.purchasePrice ?? medicine.price ?? ""),
         discountPercent: "0",
         purchaseDate: todayStr(),
       });
       setErrors({});
+      setEntryMode("tablets");
+      setTabletQty("");
+      setBoxQty("");
+      setTabletsPerBox("30");
+      setCustomTabletsPerBox("");
+      setUseCustomPerBox(false);
     }
   }, [medicine, openRef]);
 
-  const qty = Number(form.quantity);
+  const resolvedTabletsPerBox = useCustomPerBox
+    ? Number(customTabletsPerBox) || 0
+    : Number(tabletsPerBox) || 0;
+
+  const totalQty =
+    entryMode === "tablets"
+      ? Number(tabletQty) || 0
+      : (Number(boxQty) || 0) * resolvedTabletsPerBox;
+
   const pp = Number(form.purchasePrice);
   const disc = Number(form.discountPercent);
   const discountAmount = pp * (disc / 100);
   const netPrice = pp - discountAmount;
-  const totalCost = netPrice * qty;
+  const totalCost = netPrice * totalQty;
 
   const validate = (): boolean => {
-    const newErrors: Partial<FormData> = {};
-    if (!form.quantity || Number.isNaN(qty) || qty <= 0)
-      newErrors.quantity = "Must be > 0";
+    const newErrors: Record<string, string> = {};
+
+    if (entryMode === "tablets") {
+      if (!tabletQty || Number(tabletQty) <= 0)
+        newErrors.tabletQty = "Must be > 0";
+    } else {
+      if (!boxQty || Number(boxQty) <= 0) newErrors.boxQty = "Must be > 0";
+      if (resolvedTabletsPerBox <= 0) newErrors.tabletsPerBox = "Must be > 0";
+    }
+
     if (!form.purchasePrice || Number.isNaN(pp) || pp < 0)
       newErrors.purchasePrice = "Must be >= 0";
     const d = Number(form.discountPercent);
@@ -98,7 +128,7 @@ export function PurchaseStockModal({
           medicineId: medicine.id,
           medicineName: medicine.name,
           date: dateISO,
-          quantity: qty,
+          quantity: totalQty,
           purchasePrice: pp,
           discountPercent: disc,
           discountAmount,
@@ -107,9 +137,9 @@ export function PurchaseStockModal({
           addedBy: currentUser?.username ?? "unknown",
           addedByName: currentUser?.fullName ?? "Unknown",
         },
-        qty,
+        totalQty,
       );
-      toast.success(`${qty} units of ${medicine.name} added to stock`);
+      toast.success(`${totalQty} units of ${medicine.name} added to stock`);
       onClose();
     } catch {
       // Error toast shown in context
@@ -117,26 +147,6 @@ export function PurchaseStockModal({
       setSubmitting(false);
     }
   };
-
-  const field = (
-    id: keyof FormData,
-    label: string,
-    type = "text",
-    placeholder = "",
-  ) => (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type}
-        placeholder={placeholder}
-        value={form[id]}
-        onChange={(e) => setForm((prev) => ({ ...prev, [id]: e.target.value }))}
-        className={errors[id] ? "border-destructive" : ""}
-      />
-      {errors[id] && <p className="text-xs text-destructive">{errors[id]}</p>}
-    </div>
-  );
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -163,20 +173,224 @@ export function PurchaseStockModal({
               </p>
             </div>
 
-            {/* Quantity */}
-            <div className="grid grid-cols-2 gap-3">
-              {field("quantity", "Quantity *", "number", "0")}
-              {field("purchaseDate", "Purchase Date *", "date")}
+            {/* Entry mode toggle */}
+            <div className="space-y-2">
+              <Label>Quantity Entry Mode</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEntryMode("tablets")}
+                  className={`py-2 px-3 rounded-md border text-sm font-medium transition-colors ${
+                    entryMode === "tablets"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Tablet / Unit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryMode("boxes")}
+                  className={`py-2 px-3 rounded-md border text-sm font-medium transition-colors ${
+                    entryMode === "boxes"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Full Box
+                </button>
+              </div>
             </div>
+
+            {/* Tablet mode */}
+            {entryMode === "tablets" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="tabletQty">Quantity (Tablets) *</Label>
+                  <Input
+                    id="tabletQty"
+                    type="number"
+                    placeholder="0"
+                    value={tabletQty}
+                    onChange={(e) => setTabletQty(e.target.value)}
+                    className={errors.tabletQty ? "border-destructive" : ""}
+                    min="1"
+                  />
+                  {errors.tabletQty && (
+                    <p className="text-xs text-destructive">
+                      {errors.tabletQty}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="purchaseDate">Purchase Date *</Label>
+                  <Input
+                    id="purchaseDate"
+                    type="date"
+                    value={form.purchaseDate}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        purchaseDate: e.target.value,
+                      }))
+                    }
+                    className={errors.purchaseDate ? "border-destructive" : ""}
+                  />
+                  {errors.purchaseDate && (
+                    <p className="text-xs text-destructive">
+                      {errors.purchaseDate}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Box mode */}
+            {entryMode === "boxes" && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="boxQty">Number of Boxes *</Label>
+                    <Input
+                      id="boxQty"
+                      type="number"
+                      placeholder="0"
+                      value={boxQty}
+                      onChange={(e) => setBoxQty(e.target.value)}
+                      className={errors.boxQty ? "border-destructive" : ""}
+                      min="1"
+                    />
+                    {errors.boxQty && (
+                      <p className="text-xs text-destructive">
+                        {errors.boxQty}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="purchaseDateBox">Purchase Date *</Label>
+                    <Input
+                      id="purchaseDateBox"
+                      type="date"
+                      value={form.purchaseDate}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          purchaseDate: e.target.value,
+                        }))
+                      }
+                      className={
+                        errors.purchaseDate ? "border-destructive" : ""
+                      }
+                    />
+                    {errors.purchaseDate && (
+                      <p className="text-xs text-destructive">
+                        {errors.purchaseDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tablets per box */}
+                <div className="space-y-2">
+                  <Label>Tablets per Box *</Label>
+                  {!useCustomPerBox ? (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {COMMON_BOX_SIZES.map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setTabletsPerBox(String(size))}
+                            className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${
+                              tabletsPerBox === String(size)
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background border-border text-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUseCustomPerBox(true)}
+                        className="text-xs text-primary underline"
+                      >
+                        Enter custom number
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Input
+                        type="number"
+                        placeholder="e.g. 45"
+                        value={customTabletsPerBox}
+                        onChange={(e) => setCustomTabletsPerBox(e.target.value)}
+                        className={
+                          errors.tabletsPerBox ? "border-destructive" : ""
+                        }
+                        min="1"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseCustomPerBox(false);
+                          setCustomTabletsPerBox("");
+                        }}
+                        className="text-xs text-primary underline"
+                      >
+                        Use common sizes
+                      </button>
+                      {errors.tabletsPerBox && (
+                        <p className="text-xs text-destructive">
+                          {errors.tabletsPerBox}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Box calculation preview */}
+                {Number(boxQty) > 0 && resolvedTabletsPerBox > 0 && (
+                  <div className="bg-muted/50 rounded-md px-3 py-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Total tablets:{" "}
+                    </span>
+                    <span className="font-bold text-foreground">
+                      {Number(boxQty)} boxes × {resolvedTabletsPerBox} ={" "}
+                      <span className="text-primary">{totalQty} tablets</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Pricing */}
             <div className="grid grid-cols-2 gap-3">
-              {field(
-                "purchasePrice",
-                "Purchase Price/Unit (Rs.) *",
-                "number",
-                "0.00",
-              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="purchasePrice">
+                  Purchase Price/Unit (Rs.) *
+                </Label>
+                <Input
+                  id="purchasePrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.purchasePrice}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      purchasePrice: e.target.value,
+                    }))
+                  }
+                  className={errors.purchasePrice ? "border-destructive" : ""}
+                />
+                {errors.purchasePrice && (
+                  <p className="text-xs text-destructive">
+                    {errors.purchasePrice}
+                  </p>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="discountPercent">Discount % (0-100)</Label>
                 <Input
@@ -210,7 +424,7 @@ export function PurchaseStockModal({
             </div>
 
             {/* Calculated summary */}
-            {qty > 0 && pp >= 0 && (
+            {totalQty > 0 && pp >= 0 && (
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5 text-sm">
                 <p className="font-semibold text-foreground text-xs uppercase tracking-wide mb-2">
                   Purchase Summary
@@ -235,7 +449,7 @@ export function PurchaseStockModal({
                 </div>
                 <div className="flex justify-between border-t border-border pt-1.5 mt-1">
                   <span className="font-semibold">
-                    Total Cost ({qty} units)
+                    Total Cost ({totalQty} units)
                   </span>
                   <span className="font-mono font-bold text-primary">
                     Rs. {totalCost.toFixed(2)}

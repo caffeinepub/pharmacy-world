@@ -3,10 +3,10 @@ import Text "mo:core/Text";
 import Float "mo:core/Float";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
-import Migration "migration";
+
 import Runtime "mo:core/Runtime";
 
-(with migration = Migration.run)
+
 actor {
   // -- Types --
   type SuperAdmin = {

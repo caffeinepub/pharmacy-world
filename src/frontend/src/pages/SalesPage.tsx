@@ -91,6 +91,49 @@ export function SalesPage() {
     });
   };
 
+  const setQtyDirectly = (medicineId: string, value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    if (value === "" || value === "0") {
+      // allow empty while typing
+      setCart((prev) =>
+        prev.map((c) =>
+          c.medicineId === medicineId ? { ...c, quantity: 0 } : c,
+        ),
+      );
+      return;
+    }
+    if (Number.isNaN(parsed) || parsed < 1) return;
+    const med = medicines.find((m) => m.id === medicineId);
+    const maxQty = med?.quantity ?? 9999;
+    if (parsed > maxQty) {
+      toast.warning(`Only ${maxQty} units available`);
+      setCart((prev) =>
+        prev.map((c) =>
+          c.medicineId === medicineId ? { ...c, quantity: maxQty } : c,
+        ),
+      );
+      return;
+    }
+    setCart((prev) =>
+      prev.map((c) =>
+        c.medicineId === medicineId ? { ...c, quantity: parsed } : c,
+      ),
+    );
+  };
+
+  const fixQtyOnBlur = (medicineId: string) => {
+    setCart(
+      (prev) =>
+        prev
+          .map((c) => {
+            if (c.medicineId !== medicineId) return c;
+            if (c.quantity <= 0) return null;
+            return c;
+          })
+          .filter(Boolean) as CartItem[],
+    );
+  };
+
   const removeFromCart = (medicineId: string) => {
     setCart((prev) => prev.filter((c) => c.medicineId !== medicineId));
   };
@@ -289,9 +332,16 @@ export function SalesPage() {
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="text-sm font-bold w-6 text-center">
-                        {item.quantity}
-                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity === 0 ? "" : item.quantity}
+                        onChange={(e) =>
+                          setQtyDirectly(item.medicineId, e.target.value)
+                        }
+                        onBlur={() => fixQtyOnBlur(item.medicineId)}
+                        className="w-12 h-6 text-sm font-bold text-center border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
                       <button
                         type="button"
                         onClick={() => updateQty(item.medicineId, 1)}
