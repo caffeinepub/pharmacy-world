@@ -8,14 +8,266 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const Account = IDL.Record({
+  'id' : IDL.Text,
+  'username' : IDL.Text,
+  'password' : IDL.Text,
+  'createdAt' : IDL.Text,
+  'role' : IDL.Text,
+  'fullName' : IDL.Text,
+  'enabled' : IDL.Bool,
+  'pharmacyId' : IDL.Text,
+});
+export const Medicine = IDL.Record({
+  'id' : IDL.Text,
+  'manufacturer' : IDL.Text,
+  'retailPrice' : IDL.Float64,
+  'purchasePrice' : IDL.Float64,
+  'lowStockThreshold' : IDL.Nat,
+  'expiryDate' : IDL.Text,
+  'name' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'category' : IDL.Text,
+  'pharmacyId' : IDL.Text,
+  'price' : IDL.Float64,
+  'rackNumber' : IDL.Text,
+});
+export const PurchaseRecord = IDL.Record({
+  'id' : IDL.Text,
+  'purchasePrice' : IDL.Float64,
+  'date' : IDL.Text,
+  'discountAmount' : IDL.Float64,
+  'totalCost' : IDL.Float64,
+  'discountPercent' : IDL.Float64,
+  'addedByName' : IDL.Text,
+  'addedBy' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'pharmacyId' : IDL.Text,
+  'medicineId' : IDL.Text,
+  'netPurchasePrice' : IDL.Float64,
+  'medicineName' : IDL.Text,
+});
+export const SaleItem = IDL.Record({
+  'quantity' : IDL.Nat,
+  'unitPrice' : IDL.Float64,
+  'medicineId' : IDL.Text,
+  'subtotal' : IDL.Float64,
+  'medicineName' : IDL.Text,
+});
+export const Sale = IDL.Record({
+  'id' : IDL.Text,
+  'total' : IDL.Float64,
+  'soldBy' : IDL.Text,
+  'date' : IDL.Text,
+  'patientPhone' : IDL.Text,
+  'soldByName' : IDL.Text,
+  'invoiceNumber' : IDL.Text,
+  'patientName' : IDL.Text,
+  'discount' : IDL.Float64,
+  'pharmacyId' : IDL.Text,
+  'items' : IDL.Vec(SaleItem),
+  'subtotal' : IDL.Float64,
+});
+export const Pharmacy = IDL.Record({
+  'id' : IDL.Text,
+  'status' : IDL.Text,
+  'expiresAt' : IDL.Text,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Text,
+  'address' : IDL.Text,
+  'phone' : IDL.Text,
+});
+export const SuperAdmin = IDL.Record({
+  'username' : IDL.Text,
+  'password' : IDL.Text,
+});
+
 export const idlService = IDL.Service({
-  'ping' : IDL.Func([], [IDL.Text], ['query']),
+  'addAccount' : IDL.Func([Account], [], []),
+  'addMedicine' : IDL.Func([Medicine], [], []),
+  'addPharmacy' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [],
+      [],
+    ),
+  'addPurchase' : IDL.Func([PurchaseRecord], [], []),
+  'addSale' : IDL.Func([Sale], [], []),
+  'changeSuperAdminPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  'deleteAccount' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'deleteMedicine' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'deletePharmacy' : IDL.Func([IDL.Text], [], []),
+  'deleteSale' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(Sale)], []),
+  'getAccounts' : IDL.Func([IDL.Text], [IDL.Vec(Account)], ['query']),
+  'getMedicines' : IDL.Func([IDL.Text], [IDL.Vec(Medicine)], ['query']),
+  'getPharmacies' : IDL.Func([], [IDL.Vec(Pharmacy)], ['query']),
+  'getPurchases' : IDL.Func([IDL.Text], [IDL.Vec(PurchaseRecord)], ['query']),
+  'getSales' : IDL.Func([IDL.Text], [IDL.Vec(Sale)], ['query']),
+  'getSuperAdmin' : IDL.Func([], [IDL.Opt(SuperAdmin)], ['query']),
+  'setupSuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  'updateAccount' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],
+      [],
+      [],
+    ),
+  'updateMedicine' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
+  'updateMedicineQuantity' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+  'updatePharmacyStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+  'verifyAccount' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Opt(Account)],
+      ['query'],
+    ),
+  'verifySuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  return IDL.Service({ 'ping' : IDL.Func([], [IDL.Text], ['query']) });
+  const Account = IDL.Record({
+    'id' : IDL.Text,
+    'username' : IDL.Text,
+    'password' : IDL.Text,
+    'createdAt' : IDL.Text,
+    'role' : IDL.Text,
+    'fullName' : IDL.Text,
+    'enabled' : IDL.Bool,
+    'pharmacyId' : IDL.Text,
+  });
+  const Medicine = IDL.Record({
+    'id' : IDL.Text,
+    'manufacturer' : IDL.Text,
+    'retailPrice' : IDL.Float64,
+    'purchasePrice' : IDL.Float64,
+    'lowStockThreshold' : IDL.Nat,
+    'expiryDate' : IDL.Text,
+    'name' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'category' : IDL.Text,
+    'pharmacyId' : IDL.Text,
+    'price' : IDL.Float64,
+    'rackNumber' : IDL.Text,
+  });
+  const PurchaseRecord = IDL.Record({
+    'id' : IDL.Text,
+    'purchasePrice' : IDL.Float64,
+    'date' : IDL.Text,
+    'discountAmount' : IDL.Float64,
+    'totalCost' : IDL.Float64,
+    'discountPercent' : IDL.Float64,
+    'addedByName' : IDL.Text,
+    'addedBy' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'pharmacyId' : IDL.Text,
+    'medicineId' : IDL.Text,
+    'netPurchasePrice' : IDL.Float64,
+    'medicineName' : IDL.Text,
+  });
+  const SaleItem = IDL.Record({
+    'quantity' : IDL.Nat,
+    'unitPrice' : IDL.Float64,
+    'medicineId' : IDL.Text,
+    'subtotal' : IDL.Float64,
+    'medicineName' : IDL.Text,
+  });
+  const Sale = IDL.Record({
+    'id' : IDL.Text,
+    'total' : IDL.Float64,
+    'soldBy' : IDL.Text,
+    'date' : IDL.Text,
+    'patientPhone' : IDL.Text,
+    'soldByName' : IDL.Text,
+    'invoiceNumber' : IDL.Text,
+    'patientName' : IDL.Text,
+    'discount' : IDL.Float64,
+    'pharmacyId' : IDL.Text,
+    'items' : IDL.Vec(SaleItem),
+    'subtotal' : IDL.Float64,
+  });
+  const Pharmacy = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Text,
+    'expiresAt' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Text,
+    'address' : IDL.Text,
+    'phone' : IDL.Text,
+  });
+  const SuperAdmin = IDL.Record({
+    'username' : IDL.Text,
+    'password' : IDL.Text,
+  });
+  
+  return IDL.Service({
+    'addAccount' : IDL.Func([Account], [], []),
+    'addMedicine' : IDL.Func([Medicine], [], []),
+    'addPharmacy' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [],
+        [],
+      ),
+    'addPurchase' : IDL.Func([PurchaseRecord], [], []),
+    'addSale' : IDL.Func([Sale], [], []),
+    'changeSuperAdminPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+    'deleteAccount' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'deleteMedicine' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'deletePharmacy' : IDL.Func([IDL.Text], [], []),
+    'deleteSale' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(Sale)], []),
+    'getAccounts' : IDL.Func([IDL.Text], [IDL.Vec(Account)], ['query']),
+    'getMedicines' : IDL.Func([IDL.Text], [IDL.Vec(Medicine)], ['query']),
+    'getPharmacies' : IDL.Func([], [IDL.Vec(Pharmacy)], ['query']),
+    'getPurchases' : IDL.Func([IDL.Text], [IDL.Vec(PurchaseRecord)], ['query']),
+    'getSales' : IDL.Func([IDL.Text], [IDL.Vec(Sale)], ['query']),
+    'getSuperAdmin' : IDL.Func([], [IDL.Opt(SuperAdmin)], ['query']),
+    'setupSuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+    'updateAccount' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],
+        [],
+        [],
+      ),
+    'updateMedicine' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
+    'updateMedicineQuantity' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+    'updatePharmacyStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+    'verifyAccount' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Opt(Account)],
+        ['query'],
+      ),
+    'verifySuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  });
 };
 
 export const init = ({ IDL }) => { return []; };

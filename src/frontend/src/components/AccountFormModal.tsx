@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useData } from "../contexts/DataContext";
@@ -61,17 +62,26 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
     if (!validate()) return;
-    addAccount({
-      fullName: form.fullName.trim(),
-      username: form.username.trim(),
-      password: form.password,
-      role: form.role,
-      enabled: true,
-    });
-    toast.success(`Account for ${form.fullName.trim()} created`);
-    onClose();
+    setSubmitting(true);
+    try {
+      await addAccount({
+        fullName: form.fullName.trim(),
+        username: form.username.trim(),
+        password: form.password,
+        role: form.role,
+        enabled: true,
+      });
+      toast.success(`Account for ${form.fullName.trim()} created`);
+      onClose();
+    } catch {
+      // Error toast shown in context
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -154,7 +164,16 @@ export function AccountFormModal({ open, onClose }: AccountFormModalProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Create Account</Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              "Create Account"
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

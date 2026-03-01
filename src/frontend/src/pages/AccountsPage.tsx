@@ -32,18 +32,18 @@ export function AccountsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleToggle = (id: string, enabled: boolean) => {
-    updateAccount(id, { enabled });
+  const handleToggle = async (id: string, enabled: boolean) => {
     const acc = accounts.find((a) => a.id === id);
+    await updateAccount(id, { enabled });
     toast.success(
       `${acc?.fullName} account ${enabled ? "enabled" : "disabled"}`,
     );
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
     const acc = accounts.find((a) => a.id === deleteId);
-    deleteAccount(deleteId);
+    await deleteAccount(deleteId);
     toast.success(`${acc?.fullName}'s account deleted`);
     setDeleteId(null);
   };

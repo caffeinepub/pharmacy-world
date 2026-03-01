@@ -10,7 +10,123 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface _SERVICE { 'ping' : ActorMethod<[], string> }
+export interface Account {
+  'id' : string,
+  'username' : string,
+  'password' : string,
+  'createdAt' : string,
+  'role' : string,
+  'fullName' : string,
+  'enabled' : boolean,
+  'pharmacyId' : string,
+}
+export interface Medicine {
+  'id' : string,
+  'manufacturer' : string,
+  'retailPrice' : number,
+  'purchasePrice' : number,
+  'lowStockThreshold' : bigint,
+  'expiryDate' : string,
+  'name' : string,
+  'quantity' : bigint,
+  'category' : string,
+  'pharmacyId' : string,
+  'price' : number,
+  'rackNumber' : string,
+}
+export interface Pharmacy {
+  'id' : string,
+  'status' : string,
+  'expiresAt' : string,
+  'name' : string,
+  'createdAt' : string,
+  'address' : string,
+  'phone' : string,
+}
+export interface PurchaseRecord {
+  'id' : string,
+  'purchasePrice' : number,
+  'date' : string,
+  'discountAmount' : number,
+  'totalCost' : number,
+  'discountPercent' : number,
+  'addedByName' : string,
+  'addedBy' : string,
+  'quantity' : bigint,
+  'pharmacyId' : string,
+  'medicineId' : string,
+  'netPurchasePrice' : number,
+  'medicineName' : string,
+}
+export interface Sale {
+  'id' : string,
+  'total' : number,
+  'soldBy' : string,
+  'date' : string,
+  'patientPhone' : string,
+  'soldByName' : string,
+  'invoiceNumber' : string,
+  'patientName' : string,
+  'discount' : number,
+  'pharmacyId' : string,
+  'items' : Array<SaleItem>,
+  'subtotal' : number,
+}
+export interface SaleItem {
+  'quantity' : bigint,
+  'unitPrice' : number,
+  'medicineId' : string,
+  'subtotal' : number,
+  'medicineName' : string,
+}
+export interface SuperAdmin { 'username' : string, 'password' : string }
+export interface _SERVICE {
+  'addAccount' : ActorMethod<[Account], undefined>,
+  'addMedicine' : ActorMethod<[Medicine], undefined>,
+  'addPharmacy' : ActorMethod<
+    [string, string, string, string, string],
+    undefined
+  >,
+  'addPurchase' : ActorMethod<[PurchaseRecord], undefined>,
+  'addSale' : ActorMethod<[Sale], undefined>,
+  'changeSuperAdminPassword' : ActorMethod<[string, string], boolean>,
+  'deleteAccount' : ActorMethod<[string, string], undefined>,
+  'deleteMedicine' : ActorMethod<[string, string], undefined>,
+  'deletePharmacy' : ActorMethod<[string], undefined>,
+  'deleteSale' : ActorMethod<[string, string], [] | [Sale]>,
+  'getAccounts' : ActorMethod<[string], Array<Account>>,
+  'getMedicines' : ActorMethod<[string], Array<Medicine>>,
+  'getPharmacies' : ActorMethod<[], Array<Pharmacy>>,
+  'getPurchases' : ActorMethod<[string], Array<PurchaseRecord>>,
+  'getSales' : ActorMethod<[string], Array<Sale>>,
+  'getSuperAdmin' : ActorMethod<[], [] | [SuperAdmin]>,
+  'setupSuperAdmin' : ActorMethod<[string, string], boolean>,
+  'updateAccount' : ActorMethod<
+    [string, string, string, string, string, string, boolean],
+    undefined
+  >,
+  'updateMedicine' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      number,
+      number,
+      number,
+      bigint,
+      string,
+      string,
+      bigint,
+      string,
+    ],
+    undefined
+  >,
+  'updateMedicineQuantity' : ActorMethod<[string, string, bigint], undefined>,
+  'updatePharmacyStatus' : ActorMethod<[string, string, string], undefined>,
+  'verifyAccount' : ActorMethod<[string, string, string], [] | [Account]>,
+  'verifySuperAdmin' : ActorMethod<[string, string], boolean>,
+}
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
 export declare const idlFactory: IDL.InterfaceFactory;

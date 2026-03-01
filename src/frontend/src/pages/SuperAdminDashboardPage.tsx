@@ -35,6 +35,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  KeyRound,
+  Loader2,
   LogOut,
   Phone,
   Plus,
@@ -115,6 +117,8 @@ export function SuperAdminDashboardPage() {
     deletePharmacy,
     activatePharmacy,
     deactivatePharmacy,
+    changeSuperAdminPassword,
+    isLoading: pharmaciesLoading,
   } = useSuperAdmin();
   const navigate = useNavigate();
 
@@ -129,9 +133,20 @@ export function SuperAdminDashboardPage() {
     useState<Pharmacy | null>(null);
   const [selectedDurationMonths, setSelectedDurationMonths] =
     useState<number>(12);
+  const [activateLoading, setActivateLoading] = useState(false);
 
   // Deactivate confirmation state
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
+
+  // Change password dialog
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [cpForm, setCpForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [cpErrors, setCpErrors] = useState<Record<string, string>>({});
+  const [cpLoading, setCpLoading] = useState(false);
 
   // Redirect if not logged in as superadmin
   useEffect(() => {
@@ -167,51 +182,112 @@ export function SuperAdminDashboardPage() {
   const handleCreate = async () => {
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    addPharmacy({
-      name: form.name.trim(),
-      address: form.address.trim(),
-      phone: form.phone.trim(),
-      adminFullName: form.adminFullName.trim(),
-      adminUsername: form.adminUsername.trim(),
-      adminPassword: form.adminPassword,
-    });
-    toast.success(`${form.name.trim()} created successfully!`);
-    setCreateOpen(false);
-    setForm(emptyForm);
-    setErrors({});
-    setLoading(false);
+    try {
+      await addPharmacy({
+        name: form.name.trim(),
+        address: form.address.trim(),
+        phone: form.phone.trim(),
+        adminFullName: form.adminFullName.trim(),
+        adminUsername: form.adminUsername.trim(),
+        adminPassword: form.adminPassword,
+      });
+      toast.success(`${form.name.trim()} created successfully!`);
+      setCreateOpen(false);
+      setForm(emptyForm);
+      setErrors({});
+    } catch {
+      // Error toast already shown in context
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
     const ph = pharmacies.find((p) => p.id === deleteId);
-    deletePharmacy(deleteId);
-    toast.success(`${ph?.name} deleted`);
+    try {
+      await deletePharmacy(deleteId);
+      toast.success(`${ph?.name} deleted`);
+    } catch {
+      // Error toast already shown
+    }
     setDeleteId(null);
   };
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     if (!activatePharmacyTarget) return;
-    activatePharmacy(activatePharmacyTarget.id, selectedDurationMonths);
-    const label =
-      DURATION_OPTIONS.find((o) => o.months === selectedDurationMonths)
-        ?.label ?? `${selectedDurationMonths} months`;
-    toast.success(`${activatePharmacyTarget.name} activated for ${label}`);
-    setActivatePharmacyTarget(null);
+    setActivateLoading(true);
+    try {
+      await activatePharmacy(activatePharmacyTarget.id, selectedDurationMonths);
+      const label =
+        DURATION_OPTIONS.find((o) => o.months === selectedDurationMonths)
+          ?.label ?? `${selectedDurationMonths} months`;
+      toast.success(`${activatePharmacyTarget.name} activated for ${label}`);
+      setActivatePharmacyTarget(null);
+    } catch {
+      // Error toast already shown
+    } finally {
+      setActivateLoading(false);
+    }
   };
 
-  const handleDeactivate = () => {
+  const handleDeactivate = async () => {
     if (!deactivateId) return;
     const ph = pharmacies.find((p) => p.id === deactivateId);
-    deactivatePharmacy(deactivateId);
-    toast.success(`${ph?.name} deactivated`);
+    try {
+      await deactivatePharmacy(deactivateId);
+      toast.success(`${ph?.name} deactivated`);
+    } catch {
+      // Error toast already shown
+    }
     setDeactivateId(null);
   };
 
   const handleGoToPharmacy = (pharmacyId: string) => {
     localStorage.setItem("pw_selected_pharmacy", pharmacyId);
     navigate({ to: "/login" });
+  };
+
+  const validateChangePassword = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!cpForm.currentPassword)
+      e.currentPassword = "Current password is required";
+    if (!cpForm.newPassword) e.newPassword = "New password is required";
+    else if (cpForm.newPassword.length < 4)
+      e.newPassword = "Minimum 4 characters";
+    if (!cpForm.confirmPassword)
+      e.confirmPassword = "Please confirm new password";
+    else if (cpForm.newPassword !== cpForm.confirmPassword)
+      e.confirmPassword = "Passwords do not match";
+    setCpErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleChangePassword = async () => {
+    if (!validateChangePassword()) return;
+    setCpLoading(true);
+    try {
+      const success = await changeSuperAdminPassword(
+        cpForm.currentPassword,
+        cpForm.newPassword,
+      );
+      if (success) {
+        toast.success("Password changed successfully!");
+        setChangePasswordOpen(false);
+        setCpForm({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        setCpErrors({});
+      } else {
+        setCpErrors({ currentPassword: "Current password is incorrect" });
+      }
+    } catch {
+      toast.error("Failed to change password");
+    } finally {
+      setCpLoading(false);
+    }
   };
 
   const field = (
@@ -257,15 +333,26 @@ export function SuperAdminDashboardPage() {
               </p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setChangePasswordOpen(true)}
+              className="gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span className="hidden sm:inline">Change Password</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -277,9 +364,11 @@ export function SuperAdminDashboardPage() {
               Pharmacy Management
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {pharmacies.length === 0
-                ? "No pharmacies yet — create your first one"
-                : `${pharmacies.length} ${pharmacies.length === 1 ? "pharmacy" : "pharmacies"} registered`}
+              {pharmaciesLoading
+                ? "Loading..."
+                : pharmacies.length === 0
+                  ? "No pharmacies yet — create your first one"
+                  : `${pharmacies.length} ${pharmacies.length === 1 ? "pharmacy" : "pharmacies"} registered`}
             </p>
           </div>
           <Button onClick={() => setCreateOpen(true)} className="gap-2">
@@ -288,8 +377,20 @@ export function SuperAdminDashboardPage() {
           </Button>
         </div>
 
+        {/* Loading state */}
+        {pharmaciesLoading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center space-y-2">
+              <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+              <p className="text-sm text-muted-foreground">
+                Loading pharmacies...
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
-        {pharmacies.length === 0 && (
+        {!pharmaciesLoading && pharmacies.length === 0 && (
           <div className="text-center py-20 rounded-xl border-2 border-dashed border-border">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-muted mb-4">
               <Building2 className="w-7 h-7 text-muted-foreground" />
@@ -312,195 +413,184 @@ export function SuperAdminDashboardPage() {
         )}
 
         {/* Pharmacy Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pharmacies.map((pharmacy) => {
-            // Get the admin account info from localStorage
-            const accountsRaw = localStorage.getItem(
-              `ph_${pharmacy.id}_accounts`,
-            );
-            let adminUsername = "—";
-            if (accountsRaw) {
-              try {
-                const accs = JSON.parse(accountsRaw) as Array<{
-                  username: string;
-                  role: string;
-                }>;
-                const admin = accs.find((a) => a.role === "admin");
-                if (admin) adminUsername = admin.username;
-              } catch {
-                /* ignore */
-              }
-            }
+        {!pharmaciesLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pharmacies.map((pharmacy) => {
+              const active = isPharmacyActive(pharmacy);
+              const expired =
+                pharmacy.expiresAt && new Date(pharmacy.expiresAt) < new Date();
+              const daysLeft = getDaysUntilExpiry(pharmacy.expiresAt);
+              const expiringSoon =
+                active && daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
 
-            const active = isPharmacyActive(pharmacy);
-            const expired =
-              pharmacy.expiresAt && new Date(pharmacy.expiresAt) < new Date();
-            const daysLeft = getDaysUntilExpiry(pharmacy.expiresAt);
-            const expiringSoon =
-              active && daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
-
-            return (
-              <Card
-                key={pharmacy.id}
-                className={`border-border hover:shadow-md transition-shadow ${!active ? "opacity-75" : ""}`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${active ? "bg-primary/10" : "bg-muted"}`}
-                      >
-                        <Building2
-                          className={`w-5 h-5 ${active ? "text-primary" : "text-muted-foreground"}`}
-                        />
+              return (
+                <Card
+                  key={pharmacy.id}
+                  className={`border-border hover:shadow-md transition-shadow ${!active ? "opacity-75" : ""}`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${active ? "bg-primary/10" : "bg-muted"}`}
+                        >
+                          <Building2
+                            className={`w-5 h-5 ${active ? "text-primary" : "text-muted-foreground"}`}
+                          />
+                        </div>
+                        <CardTitle className="text-base truncate">
+                          {pharmacy.name}
+                        </CardTitle>
                       </div>
-                      <CardTitle className="text-base truncate">
-                        {pharmacy.name}
-                      </CardTitle>
+                      {active ? (
+                        <Badge className="text-xs bg-green-100 text-green-700 border-0 flex-shrink-0">
+                          Active
+                        </Badge>
+                      ) : expired ? (
+                        <Badge className="text-xs bg-orange-100 text-orange-700 border-0 flex-shrink-0">
+                          Expired
+                        </Badge>
+                      ) : (
+                        <Badge className="text-xs bg-red-100 text-red-700 border-0 flex-shrink-0">
+                          Inactive
+                        </Badge>
+                      )}
                     </div>
-                    {active ? (
-                      <Badge className="text-xs bg-green-100 text-green-700 border-0 flex-shrink-0">
-                        Active
-                      </Badge>
-                    ) : expired ? (
-                      <Badge className="text-xs bg-orange-100 text-orange-700 border-0 flex-shrink-0">
-                        Expired
-                      </Badge>
-                    ) : (
-                      <Badge className="text-xs bg-red-100 text-red-700 border-0 flex-shrink-0">
-                        Inactive
-                      </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-1.5 text-sm text-muted-foreground">
+                      <p className="flex items-start gap-2">
+                        <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                        <span className="line-clamp-2">{pharmacy.address}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{pharmacy.phone}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="font-mono text-xs">
+                          Pharmacy ID: {pharmacy.id.slice(0, 16)}...
+                        </span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span
+                          className={
+                            expired
+                              ? "text-orange-600 font-medium"
+                              : expiringSoon
+                                ? "text-amber-600 font-medium"
+                                : ""
+                          }
+                        >
+                          {formatExpiry(pharmacy.expiresAt)}
+                        </span>
+                      </p>
+                    </div>
+
+                    {/* Expiry warning -- 7 days or less */}
+                    {expiringSoon && (
+                      <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+                        <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
+                        <span>
+                          Subscription expires in{" "}
+                          <strong>
+                            {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+                          </strong>
+                          . Please renew soon. Contact:{" "}
+                          <strong>{SUPPORT_PHONE}</strong>
+                        </span>
+                      </div>
                     )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-1.5 text-sm text-muted-foreground">
-                    <p className="flex items-start gap-2">
-                      <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-2">{pharmacy.address}</span>
+
+                    {/* Expired warning */}
+                    {expired && (
+                      <div className="rounded-lg bg-red-50 border border-red-300 px-3 py-2 text-xs text-red-800 flex items-start gap-2">
+                        <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-600" />
+                        <span>
+                          Subscription expired. Contact to renew:{" "}
+                          <strong>{SUPPORT_PHONE}</strong>
+                        </span>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      Created:{" "}
+                      {new Date(pharmacy.createdAt).toLocaleDateString(
+                        "en-US",
+                        {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        },
+                      )}
                     </p>
-                    <p className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{pharmacy.phone}</span>
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="font-mono">{adminUsername}</span>
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span
-                        className={
-                          expired
-                            ? "text-orange-600 font-medium"
-                            : expiringSoon
-                              ? "text-amber-600 font-medium"
-                              : ""
-                        }
-                      >
-                        {formatExpiry(pharmacy.expiresAt)}
-                      </span>
-                    </p>
-                  </div>
 
-                  {/* Expiry warning -- 7 days or less */}
-                  {expiringSoon && (
-                    <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
-                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
-                      <span>
-                        Subscription expires in{" "}
-                        <strong>
-                          {daysLeft} day{daysLeft !== 1 ? "s" : ""}
-                        </strong>
-                        . Please renew soon. Contact:{" "}
-                        <strong>{SUPPORT_PHONE}</strong>
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Expired warning */}
-                  {expired && (
-                    <div className="rounded-lg bg-red-50 border border-red-300 px-3 py-2 text-xs text-red-800 flex items-start gap-2">
-                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-600" />
-                      <span>
-                        Subscription expired. Contact to renew:{" "}
-                        <strong>{SUPPORT_PHONE}</strong>
-                      </span>
-                    </div>
-                  )}
-
-                  <p className="text-xs text-muted-foreground">
-                    Created:{" "}
-                    {new Date(pharmacy.createdAt).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </p>
-
-                  {/* Action buttons */}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {/* Activate / Extend button */}
-                    <Button
-                      size="sm"
-                      variant={active ? "outline" : "default"}
-                      className={`gap-1.5 text-xs flex-1 ${
-                        active
-                          ? "border-green-300 text-green-700 hover:bg-green-50"
-                          : "bg-green-600 hover:bg-green-700 text-white"
-                      }`}
-                      onClick={() => {
-                        setActivatePharmacyTarget(pharmacy);
-                        setSelectedDurationMonths(12);
-                      }}
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {active ? "Extend" : "Activate"}
-                    </Button>
-
-                    {/* Deactivate button -- only show when active */}
-                    {active && (
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {/* Activate / Extend button */}
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="gap-1.5 text-xs border-red-300 text-red-600 hover:bg-red-50"
-                        onClick={() => setDeactivateId(pharmacy.id)}
+                        variant={active ? "outline" : "default"}
+                        className={`gap-1.5 text-xs flex-1 ${
+                          active
+                            ? "border-green-300 text-green-700 hover:bg-green-50"
+                            : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
+                        onClick={() => {
+                          setActivatePharmacyTarget(pharmacy);
+                          setSelectedDurationMonths(12);
+                        }}
                       >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Deactivate
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {active ? "Extend" : "Activate"}
                       </Button>
-                    )}
-                  </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 gap-1.5 text-xs"
-                      onClick={() => handleGoToPharmacy(pharmacy.id)}
-                      disabled={!active}
-                      title={
-                        !active
-                          ? "Activate this pharmacy first to access it"
-                          : undefined
-                      }
-                    >
-                      <ArrowRight className="w-3.5 h-3.5" />
-                      Go to {pharmacy.name}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDeleteId(pharmacy.id)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      {/* Deactivate button -- only show when active */}
+                      {active && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                          onClick={() => setDeactivateId(pharmacy.id)}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Deactivate
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1.5 text-xs"
+                        onClick={() => handleGoToPharmacy(pharmacy.id)}
+                        disabled={!active}
+                        title={
+                          !active
+                            ? "Activate this pharmacy first to access it"
+                            : undefined
+                        }
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        Go to {pharmacy.name}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteId(pharmacy.id)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       {/* Create Pharmacy Dialog */}
@@ -563,7 +653,14 @@ export function SuperAdminDashboardPage() {
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={loading}>
-              {loading ? "Creating..." : "Create Pharmacy"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Pharmacy"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -663,8 +760,16 @@ export function SuperAdminDashboardPage() {
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={handleActivate}
+              disabled={activateLoading}
             >
-              Confirm &amp; Activate
+              {activateLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Activating...
+                </>
+              ) : (
+                "Confirm & Activate"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -725,6 +830,120 @@ export function SuperAdminDashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Change Master Password Dialog */}
+      <Dialog
+        open={changePasswordOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setChangePasswordOpen(false);
+            setCpForm({
+              currentPassword: "",
+              newPassword: "",
+              confirmPassword: "",
+            });
+            setCpErrors({});
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-primary" />
+              Change Master Password
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-current">Current Password *</Label>
+              <Input
+                id="cp-current"
+                type="password"
+                placeholder="Enter current password"
+                value={cpForm.currentPassword}
+                onChange={(e) =>
+                  setCpForm((p) => ({ ...p, currentPassword: e.target.value }))
+                }
+                className={cpErrors.currentPassword ? "border-destructive" : ""}
+              />
+              {cpErrors.currentPassword && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.currentPassword}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-new">New Password *</Label>
+              <Input
+                id="cp-new"
+                type="password"
+                placeholder="Minimum 4 characters"
+                value={cpForm.newPassword}
+                onChange={(e) =>
+                  setCpForm((p) => ({ ...p, newPassword: e.target.value }))
+                }
+                className={cpErrors.newPassword ? "border-destructive" : ""}
+              />
+              {cpErrors.newPassword && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.newPassword}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-confirm">Confirm New Password *</Label>
+              <Input
+                id="cp-confirm"
+                type="password"
+                placeholder="Re-enter new password"
+                value={cpForm.confirmPassword}
+                onChange={(e) =>
+                  setCpForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                }
+                className={cpErrors.confirmPassword ? "border-destructive" : ""}
+              />
+              {cpErrors.confirmPassword && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {cpErrors.confirmPassword}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setChangePasswordOpen(false);
+                setCpForm({
+                  currentPassword: "",
+                  newPassword: "",
+                  confirmPassword: "",
+                });
+                setCpErrors({});
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={cpLoading}>
+              {cpLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -85,9 +85,13 @@ export function HistoryPage() {
     setMedSearch("");
   };
 
-  const handleDeleteSale = (saleId: string) => {
-    deleteSale(saleId);
-    toast.success("Invoice deleted and stock restored");
+  const handleDeleteSale = async (saleId: string) => {
+    try {
+      await deleteSale(saleId);
+      toast.success("Invoice deleted and stock restored");
+    } catch {
+      // Error toast shown in context
+    }
   };
 
   const totalRevenue = filtered.reduce((s, sale) => s + sale.total, 0);

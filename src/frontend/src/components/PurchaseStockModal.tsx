@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
@@ -82,31 +83,39 @@ export function PurchaseStockModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
     if (!medicine || !validate()) return;
     const dateISO = new Date(
       `${form.purchaseDate}T${new Date().toTimeString().slice(0, 8)}`,
     ).toISOString();
 
-    addPurchaseRecord(
-      {
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        date: dateISO,
-        quantity: qty,
-        purchasePrice: pp,
-        discountPercent: disc,
-        discountAmount,
-        netPurchasePrice: netPrice,
-        totalCost,
-        addedBy: currentUser?.username ?? "unknown",
-        addedByName: currentUser?.fullName ?? "Unknown",
-      },
-      qty,
-    );
-
-    toast.success(`${qty} units of ${medicine.name} added to stock`);
-    onClose();
+    setSubmitting(true);
+    try {
+      await addPurchaseRecord(
+        {
+          medicineId: medicine.id,
+          medicineName: medicine.name,
+          date: dateISO,
+          quantity: qty,
+          purchasePrice: pp,
+          discountPercent: disc,
+          discountAmount,
+          netPurchasePrice: netPrice,
+          totalCost,
+          addedBy: currentUser?.username ?? "unknown",
+          addedByName: currentUser?.fullName ?? "Unknown",
+        },
+        qty,
+      );
+      toast.success(`${qty} units of ${medicine.name} added to stock`);
+      onClose();
+    } catch {
+      // Error toast shown in context
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const field = (
@@ -241,8 +250,15 @@ export function PurchaseStockModal({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!medicine}>
-            Add to Stock
+          <Button onClick={handleSubmit} disabled={!medicine || submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              "Add to Stock"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

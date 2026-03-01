@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertCircle, Lock, Shield, User } from "lucide-react";
+import { AlertCircle, Loader2, Lock, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSuperAdmin } from "../contexts/SuperAdminContext";
 
 export function SuperAdminSetupPage() {
-  const { setupSuperAdmin } = useSuperAdmin();
+  const { setupSuperAdmin, isSuperAdminSetup } = useSuperAdmin();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -17,6 +17,12 @@ export function SuperAdminSetupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  // If already set up, redirect to login
+  if (isSuperAdminSetup) {
+    navigate({ to: "/superadmin/login" });
+    return null;
+  }
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -33,11 +39,15 @@ export function SuperAdminSetupPage() {
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    setupSuperAdmin(username.trim(), password);
-    toast.success("Master admin account created successfully!");
-    await navigate({ to: "/superadmin/dashboard" });
-    setLoading(false);
+    try {
+      await setupSuperAdmin(username.trim(), password);
+      toast.success("Master admin account created successfully!");
+      await navigate({ to: "/superadmin/dashboard" });
+    } catch {
+      toast.error("Failed to create master admin account");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -153,7 +163,14 @@ export function SuperAdminSetupPage() {
               onClick={handleSubmit}
               disabled={loading}
             >
-              {loading ? "Creating Account..." : "Create Master Admin Account"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                "Create Master Admin Account"
+              )}
             </Button>
           </CardContent>
         </Card>

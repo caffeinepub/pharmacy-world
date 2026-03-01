@@ -3,7 +3,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, ArrowLeft, Lock, Shield, User } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Loader2,
+  Lock,
+  Shield,
+  User,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSuperAdmin } from "../contexts/SuperAdminContext";
@@ -31,18 +38,22 @@ export function SuperAdminLoginPage() {
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
 
-    const success = superAdminLogin(username.trim(), password);
-    if (!success) {
-      setError("Invalid master admin credentials");
+    try {
+      const success = await superAdminLogin(username.trim(), password);
+      if (!success) {
+        setError("Invalid master admin credentials");
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Welcome, Master Admin!");
+      await navigate({ to: "/superadmin/dashboard" });
+    } catch {
+      setError("Login failed. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast.success("Welcome, Master Admin!");
-    await navigate({ to: "/superadmin/dashboard" });
-    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -113,7 +124,14 @@ export function SuperAdminLoginPage() {
             </div>
 
             <Button className="w-full" onClick={handleLogin} disabled={loading}>
-              {loading ? "Signing in..." : "Sign In as Master Admin"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In as Master Admin"
+              )}
             </Button>
 
             <div className="pt-2 border-t border-border">

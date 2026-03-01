@@ -1,33 +1,52 @@
 # Pharmacy World
 
 ## Current State
-- Multi-pharmacy POS system with admin/cashier roles
-- Sales history page shows invoices with view (eye icon) button
-- InvoiceModal handles screen view + print
-- DataContext has addSale, deductStock, addPurchaseRecord -- but NO deleteSale or restoreStock
-- Sale type has no patientName / patientPhone fields
-- Print goes directly without asking for patient info
+
+A full multi-pharmacy management system where:
+- Master Admin (SuperAdmin) manages multiple pharmacies
+- Each pharmacy has its own admin/cashier accounts, medicines inventory, sales, and purchase records
+- All data currently stored in browser `localStorage` -- works only on the browser/device where setup was done
+- Login fails on any other browser/device because localStorage is not shared
 
 ## Requested Changes (Diff)
 
 ### Add
-- `deleteSale` function in DataContext that removes a sale AND restores stock for all items in that sale
-- Delete button in History page (admin only) -- with confirmation dialog
-- Patient info dialog that appears before print -- fields: Patient Name (optional), Patient Phone (optional)
-- Patient name and phone shown on printed invoice and screen invoice preview if provided
+- ICP canister-based persistent storage for all data (SuperAdmin credentials, pharmacies list, pharmacy accounts, medicines, sales, purchases)
+- Data accessible from any browser/device after deployment
+- Default master admin credentials (username: `masteradmin`, password: `master123`) pre-seeded so first login always works from any browser
+- Change password functionality for master admin from Dashboard
 
 ### Modify
-- `Sale` type: add optional `patientName?: string` and `patientPhone?: string` fields
-- DataContext: expose `deleteSale(id: string)` which removes sale and calls restoreStock internally
-- InvoiceModal: before triggering print window, show a small dialog asking for patient name/phone; after confirm, print with those details
-- InvoiceModal screen view: show patient name/phone row if present
-- History page: add delete button (Trash2 icon) in the Invoice column for admin role; show confirm dialog before delete
+- SuperAdminContext: replace localStorage with backend canister calls for superadmin setup/login and pharmacy CRUD
+- DataContext: replace localStorage with backend canister calls for medicines, accounts, sales, purchases per pharmacy
+- AuthContext: keep session in localStorage (browser session is fine) but validate credentials against backend
+- SuperAdminSetupPage: only show if no superadmin exists in backend; if default exists, skip setup
+- SuperAdminDashboardPage: add "Change Master Password" button
 
 ### Remove
-- Nothing removed
+- Dependency on localStorage as primary data store (session-only use is fine)
 
 ## Implementation Plan
-1. Update `Sale` type to add patientName and patientPhone optional fields
-2. Add `deleteSale` to DataContextType interface and implement it in DataProvider (removes sale, restores stock quantities)
-3. Update HistoryPage: import useAuth, show Trash2 delete button for admin, show confirmation AlertDialog before calling deleteSale
-4. Update InvoiceModal: add patient info state + a pre-print dialog (PatientInfoDialog) that shows before print; pass patientName/patientPhone into print HTML and screen view
+
+1. Generate Motoko backend with:
+   - SuperAdmin storage: username + password hash, CRUD
+   - Pharmacy storage: full Pharmacy records, activate/deactivate/delete
+   - Per-pharmacy Accounts: CRUD with pharmacyId scoping
+   - Per-pharmacy Medicines: CRUD with pharmacyId scoping
+   - Per-pharmacy Sales: create, list, delete (with stock restore)
+   - Per-pharmacy Purchases: create, list
+   - Pre-seeded default master admin: username=`masteradmin` password=`master123`
+
+2. Update SuperAdminContext to call backend for:
+   - superAdminLogin (validate against backend)
+   - setupSuperAdmin / changePassword
+   - addPharmacy, deletePharmacy, activatePharmacy, deactivatePharmacy
+   - Load pharmacies list from backend
+
+3. Update DataContext to call backend for all pharmacy-scoped data operations
+
+4. Update AuthContext to validate login against backend accounts
+
+5. Add "Change Master Password" dialog in SuperAdminDashboardPage
+
+6. Keep localStorage only for active session tokens (currentUser, superadmin_session, selected_pharmacy)

@@ -1,3 +1,5 @@
+import type { backendInterface } from "@/backend";
+import { createActorWithConfig } from "@/config";
 import type React from "react";
 import {
   createContext,
@@ -6,6 +8,15 @@ import {
   useEffect,
   useState,
 } from "react";
+import { toast } from "sonner";
+
+let _actor: backendInterface | null = null;
+async function getActor(): Promise<backendInterface> {
+  if (!_actor) {
+    _actor = await createActorWithConfig();
+  }
+  return _actor;
+}
 import type { Account, Medicine, PurchaseRecord, Sale } from "../types";
 
 interface DataContextType {
@@ -13,41 +24,155 @@ interface DataContextType {
   accounts: Account[];
   sales: Sale[];
   purchaseRecords: PurchaseRecord[];
-  addMedicine: (med: Omit<Medicine, "id">) => void;
-  updateMedicine: (id: string, med: Partial<Medicine>) => void;
-  deleteMedicine: (id: string) => void;
-  addAccount: (acc: Omit<Account, "id" | "createdAt">) => void;
-  updateAccount: (id: string, acc: Partial<Account>) => void;
-  deleteAccount: (id: string) => void;
-  addSale: (sale: Omit<Sale, "id" | "invoiceNumber">) => Sale;
-  deleteSale: (id: string) => void;
-  deductStock: (items: { medicineId: string; quantity: number }[]) => void;
+  isLoading: boolean;
+  addMedicine: (med: Omit<Medicine, "id">) => Promise<void>;
+  updateMedicine: (id: string, med: Partial<Medicine>) => Promise<void>;
+  deleteMedicine: (id: string) => Promise<void>;
+  addAccount: (acc: Omit<Account, "id" | "createdAt">) => Promise<void>;
+  updateAccount: (id: string, acc: Partial<Account>) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
+  addSale: (sale: Omit<Sale, "id" | "invoiceNumber">) => Promise<Sale>;
+  deleteSale: (id: string) => Promise<void>;
+  deductStock: (
+    items: { medicineId: string; quantity: number }[],
+  ) => Promise<void>;
   addPurchaseRecord: (
     record: Omit<PurchaseRecord, "id">,
     addQuantity: number,
-  ) => void;
+  ) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
 
-function loadFromStorage<T>(key: string, fallback: T[]): T[] {
-  const stored = localStorage.getItem(key);
-  if (stored) {
-    try {
-      return JSON.parse(stored) as T[];
-    } catch {
-      return fallback;
-    }
-  }
-  return fallback;
-}
-
-function saveToStorage<T>(key: string, data: T[]) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
-
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Convert backend Medicine to frontend Medicine */
+function mapBackendMedicine(m: {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  purchasePrice: number;
+  retailPrice: number;
+  quantity: bigint;
+  expiryDate: string;
+  manufacturer: string;
+  lowStockThreshold: bigint;
+  rackNumber: string;
+  pharmacyId: string;
+}): Medicine {
+  return {
+    id: m.id,
+    name: m.name,
+    category: m.category,
+    price: m.price,
+    purchasePrice: m.purchasePrice,
+    retailPrice: m.retailPrice,
+    quantity: Number(m.quantity),
+    expiryDate: m.expiryDate,
+    manufacturer: m.manufacturer,
+    lowStockThreshold: Number(m.lowStockThreshold),
+    rackNumber: m.rackNumber || undefined,
+  };
+}
+
+/** Convert backend Account to frontend Account */
+function mapBackendAccount(a: {
+  id: string;
+  username: string;
+  password: string;
+  fullName: string;
+  role: string;
+  enabled: boolean;
+  createdAt: string;
+  pharmacyId: string;
+}): Account {
+  return {
+    id: a.id,
+    username: a.username,
+    password: a.password,
+    fullName: a.fullName,
+    role: (a.role === "admin" ? "admin" : "client") as "admin" | "client",
+    enabled: a.enabled,
+    createdAt: a.createdAt,
+  };
+}
+
+/** Convert backend Sale to frontend Sale */
+function mapBackendSale(s: {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  soldBy: string;
+  soldByName: string;
+  items: Array<{
+    medicineId: string;
+    medicineName: string;
+    quantity: bigint;
+    unitPrice: number;
+    subtotal: number;
+  }>;
+  subtotal: number;
+  discount: number;
+  total: number;
+  patientName: string;
+  patientPhone: string;
+  pharmacyId: string;
+}): Sale {
+  return {
+    id: s.id,
+    invoiceNumber: s.invoiceNumber,
+    date: s.date,
+    soldBy: s.soldBy,
+    soldByName: s.soldByName,
+    items: s.items.map((item) => ({
+      medicineId: item.medicineId,
+      medicineName: item.medicineName,
+      quantity: Number(item.quantity),
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+    })),
+    subtotal: s.subtotal,
+    discount: s.discount,
+    total: s.total,
+    patientName: s.patientName || undefined,
+    patientPhone: s.patientPhone || undefined,
+  };
+}
+
+/** Convert backend PurchaseRecord to frontend PurchaseRecord */
+function mapBackendPurchase(p: {
+  id: string;
+  medicineId: string;
+  medicineName: string;
+  date: string;
+  quantity: bigint;
+  purchasePrice: number;
+  discountPercent: number;
+  discountAmount: number;
+  netPurchasePrice: number;
+  totalCost: number;
+  addedBy: string;
+  addedByName: string;
+  pharmacyId: string;
+}): PurchaseRecord {
+  return {
+    id: p.id,
+    medicineId: p.medicineId,
+    medicineName: p.medicineName,
+    date: p.date,
+    quantity: Number(p.quantity),
+    purchasePrice: p.purchasePrice,
+    discountPercent: p.discountPercent,
+    discountAmount: p.discountAmount,
+    netPurchasePrice: p.netPurchasePrice,
+    totalCost: p.totalCost,
+    addedBy: p.addedBy,
+    addedByName: p.addedByName,
+  };
 }
 
 interface DataProviderProps {
@@ -56,126 +181,307 @@ interface DataProviderProps {
 }
 
 export function DataProvider({ children, pharmacyId }: DataProviderProps) {
-  const medicinesKey = `ph_${pharmacyId}_medicines`;
-  const accountsKey = `ph_${pharmacyId}_accounts`;
-  const salesKey = `ph_${pharmacyId}_sales`;
-  const purchasesKey = `ph_${pharmacyId}_purchases`;
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [purchaseRecords, setPurchaseRecords] = useState<PurchaseRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [medicines, setMedicines] = useState<Medicine[]>(() =>
-    loadFromStorage<Medicine>(medicinesKey, []),
+  const loadData = useCallback(async (pid: string) => {
+    if (!pid || pid === "__none__") return;
+    setIsLoading(true);
+    try {
+      const actor = await getActor();
+      const [meds, accs, sls, purchases] = await Promise.all([
+        actor.getMedicines(pid),
+        actor.getAccounts(pid),
+        actor.getSales(pid),
+        actor.getPurchases(pid),
+      ]);
+      setMedicines(meds.map(mapBackendMedicine));
+      setAccounts(accs.map(mapBackendAccount));
+      setSales(sls.map(mapBackendSale));
+      setPurchaseRecords(purchases.map(mapBackendPurchase));
+    } catch (err) {
+      console.error("Failed to load pharmacy data:", err);
+      toast.error("Failed to load pharmacy data");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Load data when pharmacyId changes
+  useEffect(() => {
+    loadData(pharmacyId);
+  }, [pharmacyId, loadData]);
+
+  const refreshData = useCallback(async () => {
+    await loadData(pharmacyId);
+  }, [pharmacyId, loadData]);
+
+  const addMedicine = useCallback(
+    async (med: Omit<Medicine, "id">) => {
+      const id = generateId();
+      const backendMed = {
+        id,
+        name: med.name,
+        category: med.category,
+        price: med.price,
+        purchasePrice: med.purchasePrice ?? 0,
+        retailPrice: med.retailPrice ?? med.price,
+        quantity: BigInt(med.quantity),
+        expiryDate: med.expiryDate,
+        manufacturer: med.manufacturer,
+        lowStockThreshold: BigInt(med.lowStockThreshold),
+        rackNumber: med.rackNumber ?? "",
+        pharmacyId,
+      };
+      try {
+        const actor = await getActor();
+        await actor.addMedicine(backendMed);
+        setMedicines((prev) => [...prev, { ...med, id }]);
+      } catch (err) {
+        console.error("Failed to add medicine:", err);
+        toast.error("Failed to add medicine");
+        throw err;
+      }
+    },
+    [pharmacyId],
   );
 
-  const [accounts, setAccounts] = useState<Account[]>(() =>
-    loadFromStorage<Account>(accountsKey, []),
+  const updateMedicine = useCallback(
+    async (id: string, med: Partial<Medicine>) => {
+      // Optimistic update
+      setMedicines((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, ...med } : m)),
+      );
+      try {
+        const current = medicines.find((m) => m.id === id);
+        if (!current) return;
+        const merged = { ...current, ...med };
+        const actor = await getActor();
+        await actor.updateMedicine(
+          id,
+          pharmacyId,
+          merged.name,
+          merged.category,
+          merged.price,
+          merged.purchasePrice ?? 0,
+          merged.retailPrice ?? merged.price,
+          BigInt(merged.quantity),
+          merged.expiryDate,
+          merged.manufacturer,
+          BigInt(merged.lowStockThreshold),
+          merged.rackNumber ?? "",
+        );
+      } catch (err) {
+        console.error("Failed to update medicine:", err);
+        toast.error("Failed to update medicine");
+        // Revert
+        setMedicines((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, ...med } : m)),
+        );
+        throw err;
+      }
+    },
+    [pharmacyId, medicines],
   );
 
-  const [sales, setSales] = useState<Sale[]>(() =>
-    loadFromStorage<Sale>(salesKey, []),
+  const deleteMedicine = useCallback(
+    async (id: string) => {
+      setMedicines((prev) => prev.filter((m) => m.id !== id));
+      try {
+        const actor = await getActor();
+        await actor.deleteMedicine(id, pharmacyId);
+      } catch (err) {
+        console.error("Failed to delete medicine:", err);
+        toast.error("Failed to delete medicine");
+        // Reload to restore state
+        await loadData(pharmacyId);
+        throw err;
+      }
+    },
+    [pharmacyId, loadData],
   );
 
-  const [purchaseRecords, setPurchaseRecords] = useState<PurchaseRecord[]>(() =>
-    loadFromStorage<PurchaseRecord>(purchasesKey, []),
+  const addAccount = useCallback(
+    async (acc: Omit<Account, "id" | "createdAt">) => {
+      const id = generateId();
+      const createdAt = new Date().toISOString();
+      const backendAcc = {
+        id,
+        username: acc.username,
+        password: acc.password,
+        fullName: acc.fullName,
+        role: acc.role,
+        enabled: acc.enabled,
+        createdAt,
+        pharmacyId,
+      };
+      try {
+        const actor = await getActor();
+        await actor.addAccount(backendAcc);
+        setAccounts((prev) => [...prev, { ...acc, id, createdAt }]);
+      } catch (err) {
+        console.error("Failed to add account:", err);
+        toast.error("Failed to add account");
+        throw err;
+      }
+    },
+    [pharmacyId],
   );
 
-  // Re-load when pharmacyId changes
-  useEffect(() => {
-    setMedicines(loadFromStorage<Medicine>(`ph_${pharmacyId}_medicines`, []));
-    setAccounts(loadFromStorage<Account>(`ph_${pharmacyId}_accounts`, []));
-    setSales(loadFromStorage<Sale>(`ph_${pharmacyId}_sales`, []));
-    setPurchaseRecords(
-      loadFromStorage<PurchaseRecord>(`ph_${pharmacyId}_purchases`, []),
-    );
-  }, [pharmacyId]);
+  const updateAccount = useCallback(
+    async (id: string, acc: Partial<Account>) => {
+      // Optimistic update
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, ...acc } : a)),
+      );
+      try {
+        const current = accounts.find((a) => a.id === id);
+        if (!current) return;
+        const merged = { ...current, ...acc };
+        const actor = await getActor();
+        await actor.updateAccount(
+          id,
+          pharmacyId,
+          merged.username,
+          merged.password,
+          merged.fullName,
+          merged.role,
+          merged.enabled,
+        );
+      } catch (err) {
+        console.error("Failed to update account:", err);
+        toast.error("Failed to update account");
+        await loadData(pharmacyId);
+        throw err;
+      }
+    },
+    [pharmacyId, accounts, loadData],
+  );
 
-  useEffect(() => {
-    saveToStorage(medicinesKey, medicines);
-  }, [medicines, medicinesKey]);
-
-  useEffect(() => {
-    saveToStorage(accountsKey, accounts);
-  }, [accounts, accountsKey]);
-
-  useEffect(() => {
-    saveToStorage(salesKey, sales);
-  }, [sales, salesKey]);
-
-  useEffect(() => {
-    saveToStorage(purchasesKey, purchaseRecords);
-  }, [purchaseRecords, purchasesKey]);
-
-  const addMedicine = useCallback((med: Omit<Medicine, "id">) => {
-    const newMed: Medicine = { ...med, id: generateId() };
-    setMedicines((prev) => [...prev, newMed]);
-  }, []);
-
-  const updateMedicine = useCallback((id: string, med: Partial<Medicine>) => {
-    setMedicines((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...med } : m)),
-    );
-  }, []);
-
-  const deleteMedicine = useCallback((id: string) => {
-    setMedicines((prev) => prev.filter((m) => m.id !== id));
-  }, []);
-
-  const addAccount = useCallback((acc: Omit<Account, "id" | "createdAt">) => {
-    const newAcc: Account = {
-      ...acc,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    setAccounts((prev) => [...prev, newAcc]);
-  }, []);
-
-  const updateAccount = useCallback((id: string, acc: Partial<Account>) => {
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, ...acc } : a)),
-    );
-  }, []);
-
-  const deleteAccount = useCallback((id: string) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  const deleteAccount = useCallback(
+    async (id: string) => {
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      try {
+        const actor = await getActor();
+        await actor.deleteAccount(id, pharmacyId);
+      } catch (err) {
+        console.error("Failed to delete account:", err);
+        toast.error("Failed to delete account");
+        await loadData(pharmacyId);
+        throw err;
+      }
+    },
+    [pharmacyId, loadData],
+  );
 
   const addSale = useCallback(
-    (saleData: Omit<Sale, "id" | "invoiceNumber">): Sale => {
+    async (saleData: Omit<Sale, "id" | "invoiceNumber">): Promise<Sale> => {
       const today = new Date();
       const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-      const storedSales = loadFromStorage<Sale>(salesKey, []);
-      const todaySales = storedSales.filter((s) =>
+      // Count today's sales for invoice numbering
+      const todaySales = sales.filter((s) =>
         s.date.startsWith(today.toISOString().slice(0, 10)),
       );
       const count = todaySales.length + 1;
       const invoiceNumber = `INV-${dateStr}-${String(count).padStart(4, "0")}`;
+      const id = generateId();
+
       const newSale: Sale = {
         ...saleData,
-        id: generateId(),
+        id,
         invoiceNumber,
       };
-      setSales((prev) => [...prev, newSale]);
-      return newSale;
+
+      const backendSale = {
+        id,
+        invoiceNumber,
+        date: saleData.date,
+        soldBy: saleData.soldBy,
+        soldByName: saleData.soldByName,
+        items: saleData.items.map((item) => ({
+          medicineId: item.medicineId,
+          medicineName: item.medicineName,
+          quantity: BigInt(item.quantity),
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+        })),
+        subtotal: saleData.subtotal,
+        discount: saleData.discount,
+        total: saleData.total,
+        patientName: saleData.patientName ?? "",
+        patientPhone: saleData.patientPhone ?? "",
+        pharmacyId,
+      };
+
+      try {
+        const actor = await getActor();
+        await actor.addSale(backendSale);
+        setSales((prev) => [...prev, newSale]);
+        return newSale;
+      } catch (err) {
+        console.error("Failed to add sale:", err);
+        toast.error("Failed to record sale");
+        throw err;
+      }
     },
-    [salesKey],
+    [pharmacyId, sales],
   );
 
-  const deleteSale = useCallback((id: string) => {
-    setSales((prev) => {
-      const sale = prev.find((s) => s.id === id);
-      if (sale) {
-        setMedicines((meds) =>
-          meds.map((med) => {
-            const item = sale.items.find((i) => i.medicineId === med.id);
-            if (item) return { ...med, quantity: med.quantity + item.quantity };
-            return med;
-          }),
-        );
+  const deleteSale = useCallback(
+    async (id: string) => {
+      try {
+        const actor = await getActor();
+        const deletedSale = await actor.deleteSale(id, pharmacyId);
+        if (deletedSale) {
+          // Restore stock for each item
+          const currentMeds = medicines;
+          await Promise.all(
+            deletedSale.items.map(async (item) => {
+              const med = currentMeds.find((m) => m.id === item.medicineId);
+              if (med) {
+                const newQty = med.quantity + Number(item.quantity);
+                await actor.updateMedicineQuantity(
+                  item.medicineId,
+                  pharmacyId,
+                  BigInt(newQty),
+                );
+              }
+            }),
+          );
+          // Update local state
+          setSales((prev) => prev.filter((s) => s.id !== id));
+          setMedicines((prev) =>
+            prev.map((med) => {
+              const item = deletedSale.items.find(
+                (i) => i.medicineId === med.id,
+              );
+              if (item)
+                return {
+                  ...med,
+                  quantity: med.quantity + Number(item.quantity),
+                };
+              return med;
+            }),
+          );
+        } else {
+          // Sale not found, just remove from local state
+          setSales((prev) => prev.filter((s) => s.id !== id));
+        }
+      } catch (err) {
+        console.error("Failed to delete sale:", err);
+        toast.error("Failed to delete sale");
+        throw err;
       }
-      return prev.filter((s) => s.id !== id);
-    });
-  }, []);
+    },
+    [pharmacyId, medicines],
+  );
 
   const deductStock = useCallback(
-    (items: { medicineId: string; quantity: number }[]) => {
+    async (items: { medicineId: string; quantity: number }[]) => {
+      // Optimistic update locally
       setMedicines((prev) =>
         prev.map((med) => {
           const item = items.find((i) => i.medicineId === med.id);
@@ -188,23 +494,82 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
           return med;
         }),
       );
+      try {
+        const actor = await getActor();
+        await Promise.all(
+          items.map(async (item) => {
+            const med = medicines.find((m) => m.id === item.medicineId);
+            if (med) {
+              const newQty = Math.max(0, med.quantity - item.quantity);
+              await actor.updateMedicineQuantity(
+                item.medicineId,
+                pharmacyId,
+                BigInt(newQty),
+              );
+            }
+          }),
+        );
+      } catch (err) {
+        console.error("Failed to deduct stock:", err);
+        toast.error("Failed to update stock");
+        // Reload to restore
+        await loadData(pharmacyId);
+        throw err;
+      }
     },
-    [],
+    [pharmacyId, medicines, loadData],
   );
 
   const addPurchaseRecord = useCallback(
-    (record: Omit<PurchaseRecord, "id">, addQuantity: number) => {
-      const newRecord: PurchaseRecord = { ...record, id: generateId() };
-      setPurchaseRecords((prev) => [...prev, newRecord]);
-      setMedicines((prev) =>
-        prev.map((med) =>
-          med.id === record.medicineId
-            ? { ...med, quantity: med.quantity + addQuantity }
-            : med,
-        ),
-      );
+    async (record: Omit<PurchaseRecord, "id">, addQuantity: number) => {
+      const id = generateId();
+      const newRecord: PurchaseRecord = { ...record, id };
+
+      const backendRecord = {
+        id,
+        medicineId: record.medicineId,
+        medicineName: record.medicineName,
+        date: record.date,
+        quantity: BigInt(record.quantity),
+        purchasePrice: record.purchasePrice,
+        discountPercent: record.discountPercent,
+        discountAmount: record.discountAmount,
+        netPurchasePrice: record.netPurchasePrice,
+        totalCost: record.totalCost,
+        addedBy: record.addedBy,
+        addedByName: record.addedByName,
+        pharmacyId,
+      };
+
+      try {
+        // Find current medicine quantity
+        const med = medicines.find((m) => m.id === record.medicineId);
+        const currentQty = med?.quantity ?? 0;
+        const newQty = currentQty + addQuantity;
+
+        const actor = await getActor();
+        await Promise.all([
+          actor.addPurchase(backendRecord),
+          actor.updateMedicineQuantity(
+            record.medicineId,
+            pharmacyId,
+            BigInt(newQty),
+          ),
+        ]);
+
+        setPurchaseRecords((prev) => [...prev, newRecord]);
+        setMedicines((prev) =>
+          prev.map((m) =>
+            m.id === record.medicineId ? { ...m, quantity: newQty } : m,
+          ),
+        );
+      } catch (err) {
+        console.error("Failed to add purchase record:", err);
+        toast.error("Failed to record purchase");
+        throw err;
+      }
     },
-    [],
+    [pharmacyId, medicines],
   );
 
   return (
@@ -214,6 +579,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         accounts,
         sales,
         purchaseRecords,
+        isLoading,
         addMedicine,
         updateMedicine,
         deleteMedicine,
@@ -224,6 +590,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         deleteSale,
         deductStock,
         addPurchaseRecord,
+        refreshData,
       }}
     >
       {children}

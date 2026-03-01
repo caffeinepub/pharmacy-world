@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useData } from "../contexts/DataContext";
@@ -115,7 +116,9 @@ export function MedicineFormModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
     if (!validate()) return;
 
     const rackNumber =
@@ -136,14 +139,21 @@ export function MedicineFormModal({
       rackNumber,
     };
 
-    if (medicine) {
-      updateMedicine(medicine.id, data);
-      toast.success(`${data.name} updated successfully`);
-    } else {
-      addMedicine(data);
-      toast.success(`${data.name} added to inventory`);
+    setSubmitting(true);
+    try {
+      if (medicine) {
+        await updateMedicine(medicine.id, data);
+        toast.success(`${data.name} updated successfully`);
+      } else {
+        await addMedicine(data);
+        toast.success(`${data.name} added to inventory`);
+      }
+      onClose();
+    } catch {
+      // Error toast shown in context
+    } finally {
+      setSubmitting(false);
     }
-    onClose();
   };
 
   const field = (
@@ -271,8 +281,17 @@ export function MedicineFormModal({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
-            {medicine ? "Save Changes" : "Add Medicine"}
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : medicine ? (
+              "Save Changes"
+            ) : (
+              "Add Medicine"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

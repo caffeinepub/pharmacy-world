@@ -77,10 +77,10 @@ export function InventoryPage() {
     return "ok";
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
     const med = medicines.find((m) => m.id === deleteId);
-    deleteMedicine(deleteId);
+    await deleteMedicine(deleteId);
     toast.success(`${med?.name} removed from inventory`);
     setDeleteId(null);
   };

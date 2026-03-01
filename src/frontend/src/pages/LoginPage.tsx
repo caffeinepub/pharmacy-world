@@ -13,6 +13,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Building2,
+  Loader2,
   Lock,
   Phone,
   Pill,
@@ -24,13 +25,11 @@ const SUPPORT_PHONE = "03114187399";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
-import { useData } from "../contexts/DataContext";
 import { isPharmacyActive, useSuperAdmin } from "../contexts/SuperAdminContext";
 
 export function LoginPage() {
-  const { login } = useAuth();
-  const { accounts } = useData();
-  const { pharmacies } = useSuperAdmin();
+  const { login, loginByCredentials } = useAuth();
+  const { pharmacies, isLoading: pharmaciesLoading } = useSuperAdmin();
   const navigate = useNavigate();
 
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<string>(() => {
@@ -41,7 +40,7 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Sync selected pharmacy to localStorage and trigger DataProvider reload
+  // Sync selected pharmacy to localStorage
   useEffect(() => {
     if (selectedPharmacyId) {
       localStorage.setItem("pw_selected_pharmacy", selectedPharmacyId);
@@ -75,7 +74,6 @@ export function LoginPage() {
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
 
     // Check if pharmacy is active / not expired
     if (selectedPharmacy && !isPharmacyActive(selectedPharmacy)) {
@@ -91,22 +89,33 @@ export function LoginPage() {
       return;
     }
 
-    const account = accounts.find((a) => a.username === username.trim());
-    if (!account || account.password !== password) {
-      setError("Invalid username or password");
-      setLoading(false);
-      return;
-    }
-    if (!account.enabled) {
-      setError("This account has been disabled. Contact administrator.");
-      setLoading(false);
-      return;
-    }
+    try {
+      const account = await loginByCredentials(
+        selectedPharmacyId,
+        username.trim(),
+        password,
+      );
 
-    login(account);
-    toast.success(`Welcome back, ${account.fullName}!`);
-    await navigate({ to: "/dashboard" });
-    setLoading(false);
+      if (!account) {
+        setError("Invalid username or password");
+        setLoading(false);
+        return;
+      }
+
+      if (!account.enabled) {
+        setError("This account has been disabled. Contact administrator.");
+        setLoading(false);
+        return;
+      }
+
+      login(account);
+      toast.success(`Welcome back, ${account.fullName}!`);
+      await navigate({ to: "/dashboard" });
+    } catch {
+      setError("Login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -146,7 +155,14 @@ export function LoginPage() {
             {/* Pharmacy Selector */}
             <div className="space-y-1.5">
               <Label htmlFor="pharmacy-select">Select Pharmacy</Label>
-              {pharmacies.length === 0 ? (
+              {pharmaciesLoading ? (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">
+                    Loading pharmacies...
+                  </p>
+                </div>
+              ) : pharmacies.length === 0 ? (
                 <div className="rounded-lg border border-border bg-muted/40 p-3 text-center">
                   <Building2 className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
                   <p className="text-xs text-muted-foreground">
@@ -223,7 +239,7 @@ export function LoginPage() {
                   onKeyDown={handleKeyDown}
                   className="pl-9"
                   autoFocus
-                  disabled={!selectedPharmacyId}
+                  disabled={!selectedPharmacyId || pharmaciesLoading}
                 />
               </div>
             </div>
@@ -240,7 +256,7 @@ export function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="pl-9"
-                  disabled={!selectedPharmacyId}
+                  disabled={!selectedPharmacyId || pharmaciesLoading}
                 />
               </div>
             </div>
@@ -248,9 +264,16 @@ export function LoginPage() {
             <Button
               className="w-full"
               onClick={handleLogin}
-              disabled={loading || !selectedPharmacyId}
+              disabled={loading || !selectedPharmacyId || pharmaciesLoading}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </Button>
 
             <div className="pt-2 border-t border-border text-center">

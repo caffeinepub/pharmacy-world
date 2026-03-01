@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
   CheckCircle,
+  Loader2,
   Minus,
   Plus,
   Search,
@@ -101,9 +102,12 @@ export function SalesPage() {
   );
   const cartTotal = cartSubtotal - discountAmt;
 
-  const completeSale = () => {
+  const [saleLoading, setSaleLoading] = useState(false);
+
+  const completeSale = async () => {
     if (cart.length === 0) return;
     if (!currentUser) return;
+    setSaleLoading(true);
 
     const items: SaleItem[] = cart.map((c) => ({
       medicineId: c.medicineId,
@@ -123,14 +127,20 @@ export function SalesPage() {
       total: cartTotal,
     };
 
-    const newSale = addSale(saleData);
-    deductStock(
-      cart.map((c) => ({ medicineId: c.medicineId, quantity: c.quantity })),
-    );
+    try {
+      const newSale = await addSale(saleData);
+      await deductStock(
+        cart.map((c) => ({ medicineId: c.medicineId, quantity: c.quantity })),
+      );
 
-    setCompletedSale(newSale);
-    setInvoiceOpen(true);
-    toast.success(`Sale completed! Invoice: ${newSale.invoiceNumber}`);
+      setCompletedSale(newSale);
+      setInvoiceOpen(true);
+      toast.success(`Sale completed! Invoice: ${newSale.invoiceNumber}`);
+    } catch {
+      // Error toast already shown in context
+    } finally {
+      setSaleLoading(false);
+    }
   };
 
   const handleInvoiceClose = () => {
@@ -349,10 +359,14 @@ export function SalesPage() {
               <Button
                 className="w-full gap-2"
                 onClick={completeSale}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || saleLoading}
               >
-                <CheckCircle className="w-4 h-4" />
-                Complete Sale
+                {saleLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                {saleLoading ? "Processing..." : "Complete Sale"}
               </Button>
             </div>
           )}

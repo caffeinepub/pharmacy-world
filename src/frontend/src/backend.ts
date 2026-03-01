@@ -89,25 +89,438 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface backendInterface {
-    ping(): Promise<string>;
+export interface Account {
+    id: string;
+    username: string;
+    password: string;
+    createdAt: string;
+    role: string;
+    fullName: string;
+    enabled: boolean;
+    pharmacyId: string;
 }
+export interface SuperAdmin {
+    username: string;
+    password: string;
+}
+export interface Pharmacy {
+    id: string;
+    status: string;
+    expiresAt: string;
+    name: string;
+    createdAt: string;
+    address: string;
+    phone: string;
+}
+export interface PurchaseRecord {
+    id: string;
+    purchasePrice: number;
+    date: string;
+    discountAmount: number;
+    totalCost: number;
+    discountPercent: number;
+    addedByName: string;
+    addedBy: string;
+    quantity: bigint;
+    pharmacyId: string;
+    medicineId: string;
+    netPurchasePrice: number;
+    medicineName: string;
+}
+export interface Medicine {
+    id: string;
+    manufacturer: string;
+    retailPrice: number;
+    purchasePrice: number;
+    lowStockThreshold: bigint;
+    expiryDate: string;
+    name: string;
+    quantity: bigint;
+    category: string;
+    pharmacyId: string;
+    price: number;
+    rackNumber: string;
+}
+export interface Sale {
+    id: string;
+    total: number;
+    soldBy: string;
+    date: string;
+    patientPhone: string;
+    soldByName: string;
+    invoiceNumber: string;
+    patientName: string;
+    discount: number;
+    pharmacyId: string;
+    items: Array<SaleItem>;
+    subtotal: number;
+}
+export interface SaleItem {
+    quantity: bigint;
+    unitPrice: number;
+    medicineId: string;
+    subtotal: number;
+    medicineName: string;
+}
+export interface backendInterface {
+    addAccount(account: Account): Promise<void>;
+    addMedicine(medicine: Medicine): Promise<void>;
+    addPharmacy(id: string, name: string, address: string, phone: string, createdAt: string): Promise<void>;
+    addPurchase(record: PurchaseRecord): Promise<void>;
+    addSale(sale: Sale): Promise<void>;
+    changeSuperAdminPassword(oldPassword: string, newPassword: string): Promise<boolean>;
+    deleteAccount(id: string, pharmacyId: string): Promise<void>;
+    deleteMedicine(id: string, pharmacyId: string): Promise<void>;
+    deletePharmacy(id: string): Promise<void>;
+    deleteSale(id: string, pharmacyId: string): Promise<Sale | null>;
+    getAccounts(pharmacyId: string): Promise<Array<Account>>;
+    getMedicines(pharmacyId: string): Promise<Array<Medicine>>;
+    getPharmacies(): Promise<Array<Pharmacy>>;
+    getPurchases(pharmacyId: string): Promise<Array<PurchaseRecord>>;
+    getSales(pharmacyId: string): Promise<Array<Sale>>;
+    getSuperAdmin(): Promise<SuperAdmin | null>;
+    setupSuperAdmin(username: string, password: string): Promise<boolean>;
+    updateAccount(id: string, pharmacyId: string, username: string, password: string, fullName: string, role: string, enabled: boolean): Promise<void>;
+    updateMedicine(id: string, pharmacyId: string, name: string, category: string, price: number, purchasePrice: number, retailPrice: number, quantity: bigint, expiryDate: string, manufacturer: string, lowStockThreshold: bigint, rackNumber: string): Promise<void>;
+    updateMedicineQuantity(id: string, pharmacyId: string, newQuantity: bigint): Promise<void>;
+    updatePharmacyStatus(id: string, status: string, expiresAt: string): Promise<void>;
+    verifyAccount(pharmacyId: string, username: string, password: string): Promise<Account | null>;
+    verifySuperAdmin(username: string, password: string): Promise<boolean>;
+}
+import type { Account as _Account, Sale as _Sale, SuperAdmin as _SuperAdmin } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
-    async ping(): Promise<string> {
+    async addAccount(arg0: Account): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.ping();
+                const result = await this.actor.addAccount(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.ping();
+            const result = await this.actor.addAccount(arg0);
             return result;
         }
     }
+    async addMedicine(arg0: Medicine): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addMedicine(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addMedicine(arg0);
+            return result;
+        }
+    }
+    async addPharmacy(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addPharmacy(arg0, arg1, arg2, arg3, arg4);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addPharmacy(arg0, arg1, arg2, arg3, arg4);
+            return result;
+        }
+    }
+    async addPurchase(arg0: PurchaseRecord): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addPurchase(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addPurchase(arg0);
+            return result;
+        }
+    }
+    async addSale(arg0: Sale): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addSale(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addSale(arg0);
+            return result;
+        }
+    }
+    async changeSuperAdminPassword(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.changeSuperAdminPassword(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.changeSuperAdminPassword(arg0, arg1);
+            return result;
+        }
+    }
+    async deleteAccount(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteAccount(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteAccount(arg0, arg1);
+            return result;
+        }
+    }
+    async deleteMedicine(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteMedicine(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteMedicine(arg0, arg1);
+            return result;
+        }
+    }
+    async deletePharmacy(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deletePharmacy(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deletePharmacy(arg0);
+            return result;
+        }
+    }
+    async deleteSale(arg0: string, arg1: string): Promise<Sale | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteSale(arg0, arg1);
+                return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteSale(arg0, arg1);
+            return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getAccounts(arg0: string): Promise<Array<Account>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAccounts(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAccounts(arg0);
+            return result;
+        }
+    }
+    async getMedicines(arg0: string): Promise<Array<Medicine>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMedicines(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMedicines(arg0);
+            return result;
+        }
+    }
+    async getPharmacies(): Promise<Array<Pharmacy>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPharmacies();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPharmacies();
+            return result;
+        }
+    }
+    async getPurchases(arg0: string): Promise<Array<PurchaseRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPurchases(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPurchases(arg0);
+            return result;
+        }
+    }
+    async getSales(arg0: string): Promise<Array<Sale>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSales(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSales(arg0);
+            return result;
+        }
+    }
+    async getSuperAdmin(): Promise<SuperAdmin | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSuperAdmin();
+                return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSuperAdmin();
+            return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async setupSuperAdmin(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setupSuperAdmin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setupSuperAdmin(arg0, arg1);
+            return result;
+        }
+    }
+    async updateAccount(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string, arg6: boolean): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateAccount(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateAccount(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+            return result;
+        }
+    }
+    async updateMedicine(arg0: string, arg1: string, arg2: string, arg3: string, arg4: number, arg5: number, arg6: number, arg7: bigint, arg8: string, arg9: string, arg10: bigint, arg11: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateMedicine(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateMedicine(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11);
+            return result;
+        }
+    }
+    async updateMedicineQuantity(arg0: string, arg1: string, arg2: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateMedicineQuantity(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateMedicineQuantity(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async updatePharmacyStatus(arg0: string, arg1: string, arg2: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updatePharmacyStatus(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updatePharmacyStatus(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async verifyAccount(arg0: string, arg1: string, arg2: string): Promise<Account | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.verifyAccount(arg0, arg1, arg2);
+                return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.verifyAccount(arg0, arg1, arg2);
+            return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async verifySuperAdmin(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.verifySuperAdmin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.verifySuperAdmin(arg0, arg1);
+            return result;
+        }
+    }
+}
+function from_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Sale]): Sale | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_SuperAdmin]): SuperAdmin | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Account]): Account | null {
+    return value.length === 0 ? null : value[0];
 }
 export interface CreateActorOptions {
     agent?: Agent;
