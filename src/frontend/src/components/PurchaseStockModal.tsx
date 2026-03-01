@@ -150,13 +150,13 @@ export function PurchaseStockModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
+      <DialogContent className="max-w-sm flex flex-col max-h-[90vh]">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Purchase Stock</DialogTitle>
         </DialogHeader>
 
         {medicine && (
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
             {/* Medicine info */}
             <div className="bg-muted/50 rounded-lg px-3 py-2.5 space-y-0.5">
               <p className="text-sm font-semibold text-foreground">
@@ -460,7 +460,7 @@ export function PurchaseStockModal({
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 pt-2 border-t border-border">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

@@ -17,6 +17,28 @@ async function getActor(): Promise<backendInterface> {
   }
   return _actor;
 }
+
+/** Retry a function up to `retries` times with exponential backoff */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1500,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      _actor = null;
+      if (i < retries - 1) {
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 import type { Account, Medicine, PurchaseRecord, Sale } from "../types";
 
 interface DataContextType {
@@ -191,20 +213,22 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
     if (!pid || pid === "__none__") return;
     setIsLoading(true);
     try {
-      const actor = await getActor();
-      const [meds, accs, sls, purchases] = await Promise.all([
-        actor.getMedicines(pid),
-        actor.getAccounts(pid),
-        actor.getSales(pid),
-        actor.getPurchases(pid),
-      ]);
+      const [meds, accs, sls, purchases] = await withRetry(async () => {
+        const actor = await getActor();
+        return Promise.all([
+          actor.getMedicines(pid),
+          actor.getAccounts(pid),
+          actor.getSales(pid),
+          actor.getPurchases(pid),
+        ]);
+      });
       setMedicines(meds.map(mapBackendMedicine));
       setAccounts(accs.map(mapBackendAccount));
       setSales(sls.map(mapBackendSale));
       setPurchaseRecords(purchases.map(mapBackendPurchase));
     } catch (err) {
       console.error("Failed to load pharmacy data:", err);
-      toast.error("Failed to load pharmacy data");
+      toast.error("Failed to load pharmacy data. Please refresh the page.");
     } finally {
       setIsLoading(false);
     }

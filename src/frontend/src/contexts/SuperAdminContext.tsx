@@ -19,6 +19,28 @@ async function getActor(): Promise<backendInterface> {
   return _actor;
 }
 
+/** Retry a function up to `retries` times with exponential backoff */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1500,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      // Reset actor so a fresh connection is attempted next time
+      _actor = null;
+      if (i < retries - 1) {
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 interface AddPharmacyInput {
   name: string;
   address: string;
@@ -105,11 +127,10 @@ export function SuperAdminProvider({
   useEffect(() => {
     async function init() {
       try {
-        const actor = await getActor();
-        const [sa, phs] = await Promise.all([
-          actor.getSuperAdmin(),
-          actor.getPharmacies(),
-        ]);
+        const [sa, phs] = await withRetry(async () => {
+          const actor = await getActor();
+          return Promise.all([actor.getSuperAdmin(), actor.getPharmacies()]);
+        });
         if (sa) {
           setSuperAdmin(sa);
           setIsSuperAdminSetup(true);
@@ -120,7 +141,7 @@ export function SuperAdminProvider({
         setPharmacies(phs.map(mapBackendPharmacy));
       } catch (err) {
         console.error("Failed to init SuperAdminContext:", err);
-        toast.error("Failed to connect to backend");
+        toast.error("Failed to connect to backend. Please refresh the page.");
       } finally {
         setIsLoading(false);
       }
@@ -142,12 +163,21 @@ export function SuperAdminProvider({
     async (username: string, password: string) => {
       try {
         const actor = await getActor();
-        await actor.setupSuperAdmin(username, password);
+        const success = await actor.setupSuperAdmin(username, password);
+        if (!success) {
+          // Already set up -- backend returned false
+          // Refresh to get current superAdmin state
+          const sa = await actor.getSuperAdmin();
+          if (sa) {
+            setSuperAdmin(sa);
+            setIsSuperAdminSetup(true);
+          }
+          throw new Error("Master admin already exists. Please login instead.");
+        }
         setSuperAdmin({ username, password });
         setIsSuperAdminSetup(true);
       } catch (err) {
         console.error("Failed to setup super admin:", err);
-        toast.error("Failed to create master admin account");
         throw err;
       }
     },

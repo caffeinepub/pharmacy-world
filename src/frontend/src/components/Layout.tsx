@@ -156,7 +156,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  : "text-white hover:bg-sidebar-accent hover:text-white"
               }`}
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
@@ -176,7 +176,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <p className="text-xs font-semibold text-sidebar-foreground truncate">
               {currentUser?.fullName}
             </p>
-            <p className="text-xs text-sidebar-foreground/50 capitalize">
+            <p className="text-xs text-white/60 capitalize">
               {currentUser?.role}
             </p>
           </div>
@@ -185,7 +185,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           variant="ghost"
           size="sm"
           onClick={openChangePw}
-          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent text-xs mb-1"
+          className="w-full justify-start gap-2 text-white/80 hover:text-white hover:bg-sidebar-accent text-xs mb-1"
         >
           <KeyRound className="w-3.5 h-3.5" />
           Change Password
@@ -194,7 +194,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           variant="ghost"
           size="sm"
           onClick={logout}
-          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent text-xs"
+          className="w-full justify-start gap-2 text-white/80 hover:text-white hover:bg-sidebar-accent text-xs"
         >
           <LogOut className="w-3.5 h-3.5" />
           Sign Out

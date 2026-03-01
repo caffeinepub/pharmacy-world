@@ -43,8 +43,14 @@ export function SuperAdminSetupPage() {
       await setupSuperAdmin(username.trim(), password);
       toast.success("Master admin account created successfully!");
       await navigate({ to: "/superadmin/dashboard" });
-    } catch {
-      toast.error("Failed to create master admin account");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("already exists")) {
+        toast.error("Master admin already set up. Redirecting to login...");
+        setTimeout(() => navigate({ to: "/superadmin/login" }), 1500);
+      } else {
+        toast.error("Failed to create master admin account. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

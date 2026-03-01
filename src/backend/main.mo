@@ -1,41 +1,34 @@
-import Array "mo:core/Array";
-import Text "mo:core/Text";
-import Float "mo:core/Float";
 import Map "mo:core/Map";
-import Time "mo:core/Time";
-
 import Runtime "mo:core/Runtime";
 
-
 actor {
-  // -- Types --
-  type SuperAdmin = {
+  public type SuperAdmin = {
     username : Text;
-    password : Text; // Store plain text passwords for simplicity
+    password : Text;
   };
 
-  type Pharmacy = {
+  public type Pharmacy = {
     id : Text;
     name : Text;
     address : Text;
     phone : Text;
     createdAt : Text;
-    status : Text; // "active" | "inactive"
-    expiresAt : Text; // ISO string or "" for no expiry
+    status : Text;
+    expiresAt : Text;
   };
 
-  type Account = {
+  public type Account = {
     id : Text;
     pharmacyId : Text;
     username : Text;
-    password : Text; // Store plain text passwords for simplicity
+    password : Text;
     fullName : Text;
-    role : Text; // "admin" | "client"
+    role : Text;
     enabled : Bool;
     createdAt : Text;
   };
 
-  type Medicine = {
+  public type Medicine = {
     id : Text;
     pharmacyId : Text;
     name : Text;
@@ -50,7 +43,7 @@ actor {
     rackNumber : Text;
   };
 
-  type SaleItem = {
+  public type SaleItem = {
     medicineId : Text;
     medicineName : Text;
     quantity : Nat;
@@ -58,7 +51,7 @@ actor {
     subtotal : Float;
   };
 
-  type Sale = {
+  public type Sale = {
     id : Text;
     pharmacyId : Text;
     invoiceNumber : Text;
@@ -73,7 +66,7 @@ actor {
     patientPhone : Text;
   };
 
-  type PurchaseRecord = {
+  public type PurchaseRecord = {
     id : Text;
     pharmacyId : Text;
     medicineId : Text;
@@ -106,7 +99,9 @@ actor {
   public shared ({ caller }) func verifySuperAdmin(username : Text, password : Text) : async Bool {
     switch (superAdmin) {
       case (null) { false };
-      case (?admin) { admin.username == username and admin.password == password };
+      case (?admin) {
+        admin.username == username and admin.password == password;
+      };
     };
   };
 
@@ -137,16 +132,10 @@ actor {
   // -- Pharmacy Functions --
 
   public query ({ caller }) func getPharmacies() : async [Pharmacy] {
-    pharmacyIdToPharmacy.toArray().map(func((_, pharmacy)) { pharmacy });
+    pharmacyIdToPharmacy.values().toArray();
   };
 
-  public shared ({ caller }) func addPharmacy(
-    id : Text,
-    name : Text,
-    address : Text,
-    phone : Text,
-    createdAt : Text,
-  ) : async () {
+  public shared ({ caller }) func addPharmacy(id : Text, name : Text, address : Text, phone : Text, createdAt : Text) : async () {
     let newPharmacy : Pharmacy = {
       id;
       name;
@@ -159,19 +148,11 @@ actor {
     pharmacyIdToPharmacy.add(id, newPharmacy);
   };
 
-  public shared ({ caller }) func updatePharmacyStatus(
-    id : Text,
-    status : Text,
-    expiresAt : Text,
-  ) : async () {
+  public shared ({ caller }) func updatePharmacyStatus(id : Text, status : Text, expiresAt : Text) : async () {
     switch (pharmacyIdToPharmacy.get(id)) {
-      case (null) { Runtime.trap("Pharmacy with id " # id # " not found"); };
+      case (null) { Runtime.trap("Pharmacy with id " # id # " not found") };
       case (?existing) {
-        let updatedPharmacy = {
-          existing with
-          status;
-          expiresAt;
-        };
+        let updatedPharmacy = { existing with status; expiresAt };
         pharmacyIdToPharmacy.add(id, updatedPharmacy);
       };
     };
@@ -184,7 +165,7 @@ actor {
   // -- Account Functions --
 
   public query ({ caller }) func getAccounts(pharmacyId : Text) : async [Account] {
-    accountIdToAccount.toArray().map(func((_, account)) { account }).filter(func(account) { account.pharmacyId == pharmacyId });
+    accountIdToAccount.values().toArray().filter(func(account) { account.pharmacyId == pharmacyId });
   };
 
   public shared ({ caller }) func addAccount(account : Account) : async () {
@@ -201,7 +182,7 @@ actor {
     enabled : Bool,
   ) : async () {
     switch (accountIdToAccount.get(id)) {
-      case (null) { Runtime.trap("Account with id " # id # " not found"); };
+      case (null) { Runtime.trap("Account with id " # id # " not found") };
       case (?existing) {
         let updatedAccount = {
           existing with
@@ -219,7 +200,7 @@ actor {
 
   public shared ({ caller }) func deleteAccount(id : Text, pharmacyId : Text) : async () {
     switch (accountIdToAccount.get(id)) {
-      case (null) { Runtime.trap("Account with id " # id # " not found"); };
+      case (null) { Runtime.trap("Account with id " # id # " not found") };
       case (?account) {
         if (account.pharmacyId != pharmacyId) {
           Runtime.trap("Pharmacy id mismatch for account " # id);
@@ -230,7 +211,7 @@ actor {
   };
 
   public query ({ caller }) func verifyAccount(pharmacyId : Text, username : Text, password : Text) : async ?Account {
-    let matching = accountIdToAccount.toArray().map(func((_, account)) { account }).find(
+    let matching = accountIdToAccount.values().find(
       func(account) {
         account.pharmacyId == pharmacyId and account.username == username and account.password == password and account.enabled
       }
@@ -241,7 +222,7 @@ actor {
   // -- Medicine Functions --
 
   public query ({ caller }) func getMedicines(pharmacyId : Text) : async [Medicine] {
-    medicineIdToMedicine.toArray().map(func((_, medicine)) { medicine }).filter(func(medicine) { medicine.pharmacyId == pharmacyId });
+    medicineIdToMedicine.values().toArray().filter(func(medicine) { medicine.pharmacyId == pharmacyId });
   };
 
   public shared ({ caller }) func addMedicine(medicine : Medicine) : async () {
@@ -263,7 +244,7 @@ actor {
     rackNumber : Text,
   ) : async () {
     switch (medicineIdToMedicine.get(id)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found"); };
+      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
       case (?existing) {
         let updatedMedicine = {
           existing with
@@ -286,7 +267,7 @@ actor {
 
   public shared ({ caller }) func deleteMedicine(id : Text, pharmacyId : Text) : async () {
     switch (medicineIdToMedicine.get(id)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found"); };
+      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
       case (?medicine) {
         if (medicine.pharmacyId != pharmacyId) {
           Runtime.trap("Pharmacy id mismatch for medicine " # id);
@@ -296,16 +277,18 @@ actor {
     };
   };
 
-  public shared ({ caller }) func updateMedicineQuantity(id : Text, pharmacyId : Text, newQuantity : Nat) : async () {
+  public shared ({ caller }) func updateMedicineQuantity(
+    id : Text,
+    pharmacyId : Text,
+    newQuantity : Nat,
+  ) : async () {
     switch (medicineIdToMedicine.get(id)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found"); };
+      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
       case (?medicine) {
         if (medicine.pharmacyId != pharmacyId) {
           Runtime.trap("Pharmacy id mismatch for medicine " # id);
         };
-        let updatedMedicine = {
-          medicine with quantity = newQuantity
-        };
+        let updatedMedicine = { medicine with quantity = newQuantity };
         medicineIdToMedicine.add(id, updatedMedicine);
       };
     };
@@ -314,7 +297,7 @@ actor {
   // -- Sale Functions --
 
   public query ({ caller }) func getSales(pharmacyId : Text) : async [Sale] {
-    saleIdToSale.toArray().map(func((_, sale)) { sale }).filter(func(sale) { sale.pharmacyId == pharmacyId });
+    saleIdToSale.values().toArray().filter(func(sale) { sale.pharmacyId == pharmacyId });
   };
 
   public shared ({ caller }) func addSale(sale : Sale) : async () {
@@ -323,7 +306,7 @@ actor {
 
   public shared ({ caller }) func deleteSale(id : Text, pharmacyId : Text) : async ?Sale {
     switch (saleIdToSale.get(id)) {
-      case (null) { Runtime.trap("Sale with id " # id # " not found"); };
+      case (null) { Runtime.trap("Sale with id " # id # " not found") };
       case (?sale) {
         if (sale.pharmacyId != pharmacyId) {
           Runtime.trap("Pharmacy id mismatch for sale " # id);
@@ -337,7 +320,7 @@ actor {
   // -- PurchaseRecord Functions --
 
   public query ({ caller }) func getPurchases(pharmacyId : Text) : async [PurchaseRecord] {
-    purchaseRecordIdToPurchaseRecord.toArray().map(func((_, record)) { record }).filter(func(record) { record.pharmacyId == pharmacyId });
+    purchaseRecordIdToPurchaseRecord.values().toArray().filter(func(record) { record.pharmacyId == pharmacyId });
   };
 
   public shared ({ caller }) func addPurchase(record : PurchaseRecord) : async () {
