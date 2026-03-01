@@ -7,7 +7,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider } from "./contexts/DataContext";
@@ -238,11 +238,23 @@ declare module "@tanstack/react-router" {
 }
 
 // ---- DataProvider with dynamic pharmacyId ----
+// Reads pharmacyId from localStorage on every render cycle via a state that
+// gets updated when the "pw_pharmacy_changed" custom event fires (dispatched
+// after a successful login/logout).
 
 function DataProviderWrapper({ children }: { children: React.ReactNode }) {
-  const [pharmacyId] = useState<string>(
+  const [pharmacyId, setPharmacyId] = useState<string>(
     () => localStorage.getItem("pw_selected_pharmacy") ?? "__none__",
   );
+
+  useEffect(() => {
+    const handler = () => {
+      setPharmacyId(localStorage.getItem("pw_selected_pharmacy") ?? "__none__");
+    };
+    window.addEventListener("pw_pharmacy_changed", handler);
+    return () => window.removeEventListener("pw_pharmacy_changed", handler);
+  }, []);
+
   return <DataProvider pharmacyId={pharmacyId}>{children}</DataProvider>;
 }
 

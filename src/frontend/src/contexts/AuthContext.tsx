@@ -48,32 +48,44 @@ function mapBackendAccount(a: {
   };
 }
 
+/** Return a pharmacy-scoped session key so sessions don't bleed across pharmacies */
+function sessionKey(): string {
+  const pid = localStorage.getItem("pw_selected_pharmacy") ?? "__none__";
+  return `pw_currentUser_${pid}`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Restore session from localStorage (session convenience only)
-    const stored = localStorage.getItem("pw_currentUser");
+    // Restore session from localStorage using pharmacy-scoped key
+    const key = sessionKey();
+    const stored = localStorage.getItem(key);
     if (stored) {
       try {
         const user = JSON.parse(stored) as Account;
         setCurrentUser(user);
       } catch {
-        localStorage.removeItem("pw_currentUser");
+        localStorage.removeItem(key);
       }
     }
     setIsLoading(false);
   }, []);
 
   const login = (user: Account) => {
-    localStorage.setItem("pw_currentUser", JSON.stringify(user));
+    const key = sessionKey();
+    localStorage.setItem(key, JSON.stringify(user));
     setCurrentUser(user);
+    // Notify DataProviderWrapper that pharmacy selection may have changed
+    window.dispatchEvent(new Event("pw_pharmacy_changed"));
   };
 
   const logout = () => {
-    localStorage.removeItem("pw_currentUser");
+    const key = sessionKey();
+    localStorage.removeItem(key);
     setCurrentUser(null);
+    window.dispatchEvent(new Event("pw_pharmacy_changed"));
   };
 
   const loginByCredentials = async (

@@ -118,9 +118,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     if (currentUser) {
       updateAccount(currentUser.id, { password: cpNew });
-      // Update stored session with new password
+      // Update stored session with new password (pharmacy-scoped key via login())
       const updated = { ...currentUser, password: cpNew };
-      localStorage.setItem("pw_currentUser", JSON.stringify(updated));
       login(updated);
     }
     toast.success("Password changed successfully");
