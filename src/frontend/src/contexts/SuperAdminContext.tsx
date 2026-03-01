@@ -18,6 +18,8 @@ interface SuperAdminContextType {
   setupSuperAdmin: (username: string, password: string) => void;
   addPharmacy: (input: AddPharmacyInput) => void;
   deletePharmacy: (id: string) => void;
+  activatePharmacy: (id: string, durationMonths: number) => void;
+  deactivatePharmacy: (id: string) => void;
   isLoggedInAsSuperAdmin: boolean;
   superAdminLogin: (username: string, password: string) => boolean;
   superAdminLogout: () => void;
@@ -33,12 +35,31 @@ function loadPharmacies(): Pharmacy[] {
   const stored = localStorage.getItem("pw_pharmacies");
   if (stored) {
     try {
-      return JSON.parse(stored) as Pharmacy[];
+      const arr = JSON.parse(stored) as Pharmacy[];
+      // Back-compat: old records without status field default to active
+      return arr.map((p) => ({
+        ...p,
+        status: p.status ?? "active",
+      }));
     } catch {
       return [];
     }
   }
   return [];
+}
+
+function savePharmacies(pharmacies: Pharmacy[]) {
+  localStorage.setItem("pw_pharmacies", JSON.stringify(pharmacies));
+}
+
+/** Returns true if pharmacy is currently active (not expired and status=active) */
+export function isPharmacyActive(pharmacy: Pharmacy): boolean {
+  if (pharmacy.status === "inactive") return false;
+  if (pharmacy.expiresAt) {
+    const expiry = new Date(pharmacy.expiresAt);
+    if (expiry < new Date()) return false;
+  }
+  return true;
 }
 
 function loadSuperAdmin(): SuperAdmin | null {
@@ -82,6 +103,8 @@ export function SuperAdminProvider({
       address: input.address,
       phone: input.phone,
       createdAt: new Date().toISOString(),
+      status: "active",
+      expiresAt: undefined,
     };
 
     // Initialize pharmacy data in localStorage
@@ -100,7 +123,7 @@ export function SuperAdminProvider({
     localStorage.setItem(`ph_${id}_purchases`, JSON.stringify([]));
 
     const updated = [...loadPharmacies(), pharmacy];
-    localStorage.setItem("pw_pharmacies", JSON.stringify(updated));
+    savePharmacies(updated);
     setPharmacies(updated);
   }, []);
 
@@ -117,7 +140,39 @@ export function SuperAdminProvider({
     }
 
     const updated = loadPharmacies().filter((p) => p.id !== id);
-    localStorage.setItem("pw_pharmacies", JSON.stringify(updated));
+    savePharmacies(updated);
+    setPharmacies(updated);
+  }, []);
+
+  const activatePharmacy = useCallback((id: string, durationMonths: number) => {
+    const current = loadPharmacies();
+    const updated = current.map((p) => {
+      if (p.id !== id) return p;
+      // If already active and has future expiry, extend from that date; else extend from now
+      const baseDate =
+        p.status === "active" &&
+        p.expiresAt &&
+        new Date(p.expiresAt) > new Date()
+          ? new Date(p.expiresAt)
+          : new Date();
+      const expiry = new Date(baseDate);
+      expiry.setMonth(expiry.getMonth() + durationMonths);
+      return {
+        ...p,
+        status: "active" as const,
+        expiresAt: expiry.toISOString(),
+      };
+    });
+    savePharmacies(updated);
+    setPharmacies(updated);
+  }, []);
+
+  const deactivatePharmacy = useCallback((id: string) => {
+    const current = loadPharmacies();
+    const updated = current.map((p) =>
+      p.id === id ? { ...p, status: "inactive" as const } : p,
+    );
+    savePharmacies(updated);
     setPharmacies(updated);
   }, []);
 
@@ -148,6 +203,8 @@ export function SuperAdminProvider({
         setupSuperAdmin,
         addPharmacy,
         deletePharmacy,
+        activatePharmacy,
+        deactivatePharmacy,
         isLoggedInAsSuperAdmin,
         superAdminLogin,
         superAdminLogout,

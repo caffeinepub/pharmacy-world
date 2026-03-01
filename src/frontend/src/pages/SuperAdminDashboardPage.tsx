@@ -20,21 +20,33 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   ArrowRight,
   Building2,
+  Calendar,
+  CheckCircle2,
+  Clock,
   LogOut,
   Phone,
   Plus,
   Shield,
   Trash2,
   User,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useSuperAdmin } from "../contexts/SuperAdminContext";
+import { isPharmacyActive, useSuperAdmin } from "../contexts/SuperAdminContext";
+import type { Pharmacy } from "../types";
 
 interface CreatePharmacyForm {
   name: string;
@@ -54,6 +66,46 @@ const emptyForm: CreatePharmacyForm = {
   adminPassword: "",
 };
 
+// Duration options
+const DURATION_OPTIONS = [
+  { label: "1 Month", months: 1 },
+  { label: "3 Months", months: 3 },
+  { label: "6 Months", months: 6 },
+  { label: "1 Year", months: 12 },
+  { label: "2 Years", months: 24 },
+  { label: "3 Years", months: 36 },
+];
+
+const SUPPORT_PHONE = "03114187399";
+
+function formatExpiry(expiresAt?: string): string {
+  if (!expiresAt) return "No expiry set";
+  const d = new Date(expiresAt);
+  const now = new Date();
+  if (d < now) return "Expired";
+  const diffMs = d.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 1) return "Expires tomorrow";
+  if (diffDays <= 30) return `Expires in ${diffDays} days`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12)
+    return `Expires in ${diffMonths} month${diffMonths > 1 ? "s" : ""}`;
+  const diffYears = Math.floor(diffMonths / 12);
+  const remMonths = diffMonths % 12;
+  if (remMonths === 0)
+    return `Expires in ${diffYears} year${diffYears > 1 ? "s" : ""}`;
+  return `Expires in ${diffYears}y ${remMonths}m`;
+}
+
+function getDaysUntilExpiry(expiresAt?: string): number | null {
+  if (!expiresAt) return null;
+  const d = new Date(expiresAt);
+  const now = new Date();
+  if (d < now) return -1;
+  const diffMs = d.getTime() - now.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
 export function SuperAdminDashboardPage() {
   const {
     pharmacies,
@@ -61,6 +113,8 @@ export function SuperAdminDashboardPage() {
     superAdminLogout,
     addPharmacy,
     deletePharmacy,
+    activatePharmacy,
+    deactivatePharmacy,
   } = useSuperAdmin();
   const navigate = useNavigate();
 
@@ -69,6 +123,15 @@ export function SuperAdminDashboardPage() {
   const [form, setForm] = useState<CreatePharmacyForm>(emptyForm);
   const [errors, setErrors] = useState<Partial<CreatePharmacyForm>>({});
   const [loading, setLoading] = useState(false);
+
+  // Activate dialog state
+  const [activatePharmacyTarget, setActivatePharmacyTarget] =
+    useState<Pharmacy | null>(null);
+  const [selectedDurationMonths, setSelectedDurationMonths] =
+    useState<number>(12);
+
+  // Deactivate confirmation state
+  const [deactivateId, setDeactivateId] = useState<string | null>(null);
 
   // Redirect if not logged in as superadmin
   useEffect(() => {
@@ -126,6 +189,24 @@ export function SuperAdminDashboardPage() {
     deletePharmacy(deleteId);
     toast.success(`${ph?.name} deleted`);
     setDeleteId(null);
+  };
+
+  const handleActivate = () => {
+    if (!activatePharmacyTarget) return;
+    activatePharmacy(activatePharmacyTarget.id, selectedDurationMonths);
+    const label =
+      DURATION_OPTIONS.find((o) => o.months === selectedDurationMonths)
+        ?.label ?? `${selectedDurationMonths} months`;
+    toast.success(`${activatePharmacyTarget.name} activated for ${label}`);
+    setActivatePharmacyTarget(null);
+  };
+
+  const handleDeactivate = () => {
+    if (!deactivateId) return;
+    const ph = pharmacies.find((p) => p.id === deactivateId);
+    deactivatePharmacy(deactivateId);
+    toast.success(`${ph?.name} deactivated`);
+    setDeactivateId(null);
   };
 
   const handleGoToPharmacy = (pharmacyId: string) => {
@@ -251,24 +332,45 @@ export function SuperAdminDashboardPage() {
               }
             }
 
+            const active = isPharmacyActive(pharmacy);
+            const expired =
+              pharmacy.expiresAt && new Date(pharmacy.expiresAt) < new Date();
+            const daysLeft = getDaysUntilExpiry(pharmacy.expiresAt);
+            const expiringSoon =
+              active && daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
+
             return (
               <Card
                 key={pharmacy.id}
-                className="border-border hover:shadow-md transition-shadow"
+                className={`border-border hover:shadow-md transition-shadow ${!active ? "opacity-75" : ""}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Building2 className="w-5 h-5 text-primary" />
+                      <div
+                        className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${active ? "bg-primary/10" : "bg-muted"}`}
+                      >
+                        <Building2
+                          className={`w-5 h-5 ${active ? "text-primary" : "text-muted-foreground"}`}
+                        />
                       </div>
                       <CardTitle className="text-base truncate">
                         {pharmacy.name}
                       </CardTitle>
                     </div>
-                    <Badge className="text-xs bg-success/10 text-success border-0 flex-shrink-0">
-                      Active
-                    </Badge>
+                    {active ? (
+                      <Badge className="text-xs bg-green-100 text-green-700 border-0 flex-shrink-0">
+                        Active
+                      </Badge>
+                    ) : expired ? (
+                      <Badge className="text-xs bg-orange-100 text-orange-700 border-0 flex-shrink-0">
+                        Expired
+                      </Badge>
+                    ) : (
+                      <Badge className="text-xs bg-red-100 text-red-700 border-0 flex-shrink-0">
+                        Inactive
+                      </Badge>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -285,7 +387,47 @@ export function SuperAdminDashboardPage() {
                       <User className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="font-mono">{adminUsername}</span>
                     </p>
+                    <p className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span
+                        className={
+                          expired
+                            ? "text-orange-600 font-medium"
+                            : expiringSoon
+                              ? "text-amber-600 font-medium"
+                              : ""
+                        }
+                      >
+                        {formatExpiry(pharmacy.expiresAt)}
+                      </span>
+                    </p>
                   </div>
+
+                  {/* Expiry warning -- 7 days or less */}
+                  {expiringSoon && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
+                      <span>
+                        Subscription expires in{" "}
+                        <strong>
+                          {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+                        </strong>
+                        . Please renew soon. Contact:{" "}
+                        <strong>{SUPPORT_PHONE}</strong>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Expired warning */}
+                  {expired && (
+                    <div className="rounded-lg bg-red-50 border border-red-300 px-3 py-2 text-xs text-red-800 flex items-start gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-600" />
+                      <span>
+                        Subscription expired. Contact to renew:{" "}
+                        <strong>{SUPPORT_PHONE}</strong>
+                      </span>
+                    </div>
+                  )}
 
                   <p className="text-xs text-muted-foreground">
                     Created:{" "}
@@ -296,11 +438,51 @@ export function SuperAdminDashboardPage() {
                     })}
                   </p>
 
-                  <div className="flex gap-2 pt-1">
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {/* Activate / Extend button */}
+                    <Button
+                      size="sm"
+                      variant={active ? "outline" : "default"}
+                      className={`gap-1.5 text-xs flex-1 ${
+                        active
+                          ? "border-green-300 text-green-700 hover:bg-green-50"
+                          : "bg-green-600 hover:bg-green-700 text-white"
+                      }`}
+                      onClick={() => {
+                        setActivatePharmacyTarget(pharmacy);
+                        setSelectedDurationMonths(12);
+                      }}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {active ? "Extend" : "Activate"}
+                    </Button>
+
+                    {/* Deactivate button -- only show when active */}
+                    {active && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                        onClick={() => setDeactivateId(pharmacy.id)}
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Deactivate
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
                     <Button
                       size="sm"
                       className="flex-1 gap-1.5 text-xs"
                       onClick={() => handleGoToPharmacy(pharmacy.id)}
+                      disabled={!active}
+                      title={
+                        !active
+                          ? "Activate this pharmacy first to access it"
+                          : undefined
+                      }
                     >
                       <ArrowRight className="w-3.5 h-3.5" />
                       Go to {pharmacy.name}
@@ -386,6 +568,136 @@ export function SuperAdminDashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Activate / Extend Duration Dialog */}
+      <Dialog
+        open={!!activatePharmacyTarget}
+        onOpenChange={(o) => !o && setActivatePharmacyTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-green-600" />
+              {activatePharmacyTarget &&
+              isPharmacyActive(activatePharmacyTarget)
+                ? "Extend Subscription"
+                : "Activate Pharmacy"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {activatePharmacyTarget && (
+              <p className="text-sm text-muted-foreground">
+                Set subscription duration for{" "}
+                <strong>{activatePharmacyTarget.name}</strong>.
+                {activatePharmacyTarget.expiresAt &&
+                  new Date(activatePharmacyTarget.expiresAt) > new Date() && (
+                    <span className="block mt-1 text-xs text-blue-600">
+                      Current expiry:{" "}
+                      {new Date(
+                        activatePharmacyTarget.expiresAt,
+                      ).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                      . New duration will be added on top.
+                    </span>
+                  )}
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Duration *</Label>
+              <Select
+                value={String(selectedDurationMonths)}
+                onValueChange={(v) => setSelectedDurationMonths(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.months} value={String(opt.months)}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Preview expiry date */}
+            {activatePharmacyTarget && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm">
+                <p className="text-green-700 font-medium">
+                  New expiry date preview:
+                </p>
+                <p className="text-green-800 font-semibold">
+                  {(() => {
+                    const baseDate =
+                      activatePharmacyTarget.status === "active" &&
+                      activatePharmacyTarget.expiresAt &&
+                      new Date(activatePharmacyTarget.expiresAt) > new Date()
+                        ? new Date(activatePharmacyTarget.expiresAt)
+                        : new Date();
+                    const d = new Date(baseDate);
+                    d.setMonth(d.getMonth() + selectedDurationMonths);
+                    return d.toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    });
+                  })()}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setActivatePharmacyTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleActivate}
+            >
+              Confirm &amp; Activate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Confirmation */}
+      <AlertDialog
+        open={!!deactivateId}
+        onOpenChange={(o) => !o && setDeactivateId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate Pharmacy</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to deactivate{" "}
+              <strong>
+                {pharmacies.find((p) => p.id === deactivateId)?.name}
+              </strong>
+              ? The pharmacy admin and staff will not be able to log in until
+              you activate it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeactivate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog

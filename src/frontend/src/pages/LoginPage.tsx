@@ -10,12 +10,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, Building2, Lock, Pill, User } from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  Lock,
+  Phone,
+  Pill,
+  User,
+  XCircle,
+} from "lucide-react";
+
+const SUPPORT_PHONE = "03114187399";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
-import { useSuperAdmin } from "../contexts/SuperAdminContext";
+import { isPharmacyActive, useSuperAdmin } from "../contexts/SuperAdminContext";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -40,6 +50,19 @@ export function LoginPage() {
 
   const selectedPharmacy = pharmacies.find((p) => p.id === selectedPharmacyId);
 
+  // Check if expiring within 7 days
+  const selectedExpiry = selectedPharmacy?.expiresAt
+    ? new Date(selectedPharmacy.expiresAt)
+    : null;
+  const daysUntilExpiry = selectedExpiry
+    ? Math.ceil((selectedExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const expiringSoon =
+    selectedPharmacy &&
+    daysUntilExpiry !== null &&
+    daysUntilExpiry >= 0 &&
+    daysUntilExpiry <= 7;
+
   const handleLogin = async () => {
     setError("");
     if (!selectedPharmacyId) {
@@ -53,6 +76,20 @@ export function LoginPage() {
 
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
+
+    // Check if pharmacy is active / not expired
+    if (selectedPharmacy && !isPharmacyActive(selectedPharmacy)) {
+      const isExpired =
+        selectedPharmacy.expiresAt &&
+        new Date(selectedPharmacy.expiresAt) < new Date();
+      setError(
+        isExpired
+          ? `This pharmacy's subscription has expired. Please contact: ${SUPPORT_PHONE} to renew.`
+          : `This pharmacy is currently inactive. Please contact: ${SUPPORT_PHONE} to activate it.`,
+      );
+      setLoading(false);
+      return;
+    }
 
     const account = accounts.find((a) => a.username === username.trim());
     if (!account || account.password !== password) {
@@ -135,15 +172,44 @@ export function LoginPage() {
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    {pharmacies.map((ph) => (
-                      <SelectItem key={ph.id} value={ph.id}>
-                        {ph.name}
-                      </SelectItem>
-                    ))}
+                    {pharmacies.map((ph) => {
+                      const active = isPharmacyActive(ph);
+                      const expired =
+                        ph.expiresAt && new Date(ph.expiresAt) < new Date();
+                      return (
+                        <SelectItem key={ph.id} value={ph.id}>
+                          <span className="flex items-center gap-2">
+                            {!active && (
+                              <XCircle className="w-3.5 h-3.5 text-destructive inline-block" />
+                            )}
+                            {ph.name}
+                            {!active && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({expired ? "Expired" : "Inactive"})
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}
             </div>
+
+            {/* Expiry soon warning */}
+            {expiringSoon && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-sm">
+                <Phone className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-600" />
+                <span>
+                  Subscription expires in{" "}
+                  <strong>
+                    {daysUntilExpiry} day{daysUntilExpiry !== 1 ? "s" : ""}
+                  </strong>
+                  . Please renew soon. Contact: <strong>{SUPPORT_PHONE}</strong>
+                </span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="username">Username</Label>

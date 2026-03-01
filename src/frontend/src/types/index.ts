@@ -4,6 +4,8 @@ export interface Pharmacy {
   address: string;
   phone: string;
   createdAt: string;
+  status: "active" | "inactive";
+  expiresAt?: string; // ISO string -- undefined means no expiry set
 }
 
 export interface SuperAdmin {
