@@ -1,5 +1,13 @@
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import Tex "mo:core/Text";
+import Float "mo:core/Float";
+import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
+import List "mo:core/List";
+import Iter "mo:core/Iter";
+
+
 
 actor {
   public type SuperAdmin = {
@@ -82,13 +90,45 @@ actor {
     addedByName : Text;
   };
 
-  // -- Persistent Storage --
+  public type InventoryAdjustmentRecord = {
+    pharmacyId : Text;
+    medicineId : Text;
+    adjustmentAmount : Nat;
+    reason : Text;
+    adjustedBy : Text;
+    timestamp : Text;
+    inventoryDifferences : ?Text;
+  };
+
+  public type UnauthorizedAccessAttempt = {
+    pharmacyId : Text;
+    userId : Text;
+    resourceAttempted : Text;
+    timestamp : Text;
+    details : Text;
+  };
+
+  public type TransactionRecord = {
+    pharmacyId : Text;
+    transactionType : Text;
+    transactionId : Text;
+    amount : Float;
+    performedBy : Text;
+    timestamp : Text;
+    source : Text;
+  };
+
   var superAdmin : ?SuperAdmin = null;
+
+  // Persistent Storage
   let pharmacyIdToPharmacy = Map.empty<Text, Pharmacy>();
-  let accountIdToAccount = Map.empty<Text, Account>();
-  let medicineIdToMedicine = Map.empty<Text, Medicine>();
-  let saleIdToSale = Map.empty<Text, Sale>();
-  let purchaseRecordIdToPurchaseRecord = Map.empty<Text, PurchaseRecord>();
+  let accountIdToAccountList = Map.empty<Text, List.List<Account>>();
+  let medicineIdToMedicineList = Map.empty<Text, List.List<Medicine>>();
+  let saleIdToSaleList = Map.empty<Text, List.List<Sale>>();
+  let purchaseRecordIdToPurchaseRecordList = Map.empty<Text, List.List<PurchaseRecord>>();
+  let inventoryAdjustmentRecords = List.empty<InventoryAdjustmentRecord>();
+  let unauthorizedAccessAttempts = List.empty<UnauthorizedAccessAttempt>();
+  let transactionRecords = List.empty<TransactionRecord>();
 
   // -- SuperAdmin Functions --
 
@@ -99,9 +139,7 @@ actor {
   public shared ({ caller }) func verifySuperAdmin(username : Text, password : Text) : async Bool {
     switch (superAdmin) {
       case (null) { false };
-      case (?admin) {
-        admin.username == username and admin.password == password;
-      };
+      case (?admin) { admin.username == username and admin.password == password };
     };
   };
 
@@ -164,12 +202,24 @@ actor {
 
   // -- Account Functions --
 
+  func updateAccountList(account : Account) {
+    let existingList = switch (accountIdToAccountList.get(account.pharmacyId)) {
+      case (null) { List.empty<Account>() };
+      case (?list) { list };
+    };
+    existingList.add(account);
+    accountIdToAccountList.add(account.pharmacyId, existingList);
+  };
+
   public query ({ caller }) func getAccounts(pharmacyId : Text) : async [Account] {
-    accountIdToAccount.values().toArray().filter(func(account) { account.pharmacyId == pharmacyId });
+    switch (accountIdToAccountList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) { list.toArray() };
+    };
   };
 
   public shared ({ caller }) func addAccount(account : Account) : async () {
-    accountIdToAccount.add(account.id, account);
+    updateAccountList(account);
   };
 
   public shared ({ caller }) func updateAccount(
@@ -181,52 +231,117 @@ actor {
     role : Text,
     enabled : Bool,
   ) : async () {
-    switch (accountIdToAccount.get(id)) {
+    switch (accountIdToAccountList.get(pharmacyId)) {
       case (null) { Runtime.trap("Account with id " # id # " not found") };
-      case (?existing) {
+      case (?list) {
+        let filteredList = list.filter(func(account) { account.id != id });
         let updatedAccount = {
-          existing with
+          id;
           pharmacyId;
           username;
           password;
           fullName;
           role;
           enabled;
+          createdAt = "";
         };
-        accountIdToAccount.add(id, updatedAccount);
+        filteredList.add(updatedAccount);
+        accountIdToAccountList.add(pharmacyId, filteredList);
       };
     };
   };
 
   public shared ({ caller }) func deleteAccount(id : Text, pharmacyId : Text) : async () {
-    switch (accountIdToAccount.get(id)) {
+    switch (accountIdToAccountList.get(pharmacyId)) {
       case (null) { Runtime.trap("Account with id " # id # " not found") };
-      case (?account) {
-        if (account.pharmacyId != pharmacyId) {
-          Runtime.trap("Pharmacy id mismatch for account " # id);
-        };
-        accountIdToAccount.remove(id);
+      case (?list) {
+        let filteredList = list.filter(func(account) { account.id != id });
+        accountIdToAccountList.add(pharmacyId, filteredList);
       };
     };
   };
 
   public query ({ caller }) func verifyAccount(pharmacyId : Text, username : Text, password : Text) : async ?Account {
-    let matching = accountIdToAccount.values().find(
-      func(account) {
-        account.pharmacyId == pharmacyId and account.username == username and account.password == password and account.enabled
-      }
-    );
-    matching;
+    switch (accountIdToAccountList.get(pharmacyId)) {
+      case (null) { null };
+      case (?list) {
+        list.find(func(account) { account.username == username and account.password == password and account.enabled });
+      };
+    };
   };
 
   // -- Medicine Functions --
 
+  func updateMedicineList(medicine : Medicine) {
+    let existingList = switch (medicineIdToMedicineList.get(medicine.pharmacyId)) {
+      case (null) { List.empty<Medicine>() };
+      case (?list) { list };
+    };
+    existingList.add(medicine);
+    medicineIdToMedicineList.add(medicine.pharmacyId, existingList);
+  };
+
   public query ({ caller }) func getMedicines(pharmacyId : Text) : async [Medicine] {
-    medicineIdToMedicine.values().toArray().filter(func(medicine) { medicine.pharmacyId == pharmacyId });
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) { list.toArray() };
+    };
+  };
+
+  func categoryCompare(a : Medicine, b : Medicine) : Order.Order {
+    Tex.compare(a.category, b.category);
+  };
+
+  func priceCompare(a : Medicine, b : Medicine) : Order.Order {
+    Float.compare(a.price, b.price);
+  };
+
+  func expiryDateCompare(a : Medicine, b : Medicine) : Order.Order {
+    Tex.compare(a.expiryDate, b.expiryDate);
+  };
+
+  public query ({ caller }) func getMedicinesLowStock(pharmacyId : Text) : async [Medicine] {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) {
+        let lowStock = list.filter(func(med) { med.quantity <= med.lowStockThreshold });
+        lowStock.toArray();
+      };
+    };
+  };
+
+  public query ({ caller }) func getMedicinesExpiringSoon(pharmacyId : Text) : async [Medicine] {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) {
+        let sortedList = list.sort(expiryDateCompare);
+        sortedList.toArray();
+      };
+    };
+  };
+
+  public query ({ caller }) func getMedicinesByCategory(pharmacyId : Text, category : Text) : async [Medicine] {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) {
+        let filteredList = list.filter(func(med) { med.category == category });
+        filteredList.toArray();
+      };
+    };
+  };
+
+  public query ({ caller }) func getMedicinesByPriceRange(pharmacyId : Text, minPrice : Float, maxPrice : Float) : async [Medicine] {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) {
+        let filteredList = list.filter(func(med) { med.price >= minPrice and med.price <= maxPrice });
+        filteredList.toArray();
+      };
+    };
   };
 
   public shared ({ caller }) func addMedicine(medicine : Medicine) : async () {
-    medicineIdToMedicine.add(medicine.id, medicine);
+    updateMedicineList(medicine);
   };
 
   public shared ({ caller }) func updateMedicine(
@@ -243,11 +358,12 @@ actor {
     lowStockThreshold : Nat,
     rackNumber : Text,
   ) : async () {
-    switch (medicineIdToMedicine.get(id)) {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
       case (null) { Runtime.trap("Medicine with id " # id # " not found") };
-      case (?existing) {
+      case (?list) {
+        let filteredList = list.filter(func(medicine) { medicine.id != id });
         let updatedMedicine = {
-          existing with
+          id;
           pharmacyId;
           name;
           category;
@@ -260,70 +376,118 @@ actor {
           lowStockThreshold;
           rackNumber;
         };
-        medicineIdToMedicine.add(id, updatedMedicine);
+        filteredList.add(updatedMedicine);
+        medicineIdToMedicineList.add(pharmacyId, filteredList);
       };
     };
   };
 
   public shared ({ caller }) func deleteMedicine(id : Text, pharmacyId : Text) : async () {
-    switch (medicineIdToMedicine.get(id)) {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
       case (null) { Runtime.trap("Medicine with id " # id # " not found") };
-      case (?medicine) {
-        if (medicine.pharmacyId != pharmacyId) {
-          Runtime.trap("Pharmacy id mismatch for medicine " # id);
-        };
-        medicineIdToMedicine.remove(id);
+      case (?list) {
+        let filteredList = list.filter(func(medicine) { medicine.id != id });
+        medicineIdToMedicineList.add(pharmacyId, filteredList);
       };
     };
   };
 
-  public shared ({ caller }) func updateMedicineQuantity(
-    id : Text,
-    pharmacyId : Text,
-    newQuantity : Nat,
-  ) : async () {
-    switch (medicineIdToMedicine.get(id)) {
+  public shared ({ caller }) func updateMedicineQuantity(id : Text, pharmacyId : Text, newQuantity : Nat) : async () {
+    switch (medicineIdToMedicineList.get(pharmacyId)) {
       case (null) { Runtime.trap("Medicine with id " # id # " not found") };
-      case (?medicine) {
-        if (medicine.pharmacyId != pharmacyId) {
-          Runtime.trap("Pharmacy id mismatch for medicine " # id);
+      case (?list) {
+        let filteredList = list.filter(func(medicine) { medicine.id != id });
+        let existingMedicine = list.find(func(medicine) { medicine.id == id });
+        switch (existingMedicine) {
+          case (null) { Runtime.trap("Medicine with id " # id # " not found") };
+          case (?existing) {
+            let updatedMedicine = { existing with quantity = newQuantity };
+            filteredList.add(updatedMedicine);
+            medicineIdToMedicineList.add(pharmacyId, filteredList);
+          };
         };
-        let updatedMedicine = { medicine with quantity = newQuantity };
-        medicineIdToMedicine.add(id, updatedMedicine);
       };
     };
   };
 
   // -- Sale Functions --
 
+  func updateSaleList(sale : Sale) {
+    let existingList = switch (saleIdToSaleList.get(sale.pharmacyId)) {
+      case (null) { List.empty<Sale>() };
+      case (?list) { list };
+    };
+    existingList.add(sale);
+    saleIdToSaleList.add(sale.pharmacyId, existingList);
+  };
+
   public query ({ caller }) func getSales(pharmacyId : Text) : async [Sale] {
-    saleIdToSale.values().toArray().filter(func(sale) { sale.pharmacyId == pharmacyId });
+    switch (saleIdToSaleList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) { list.toArray() };
+    };
   };
 
   public shared ({ caller }) func addSale(sale : Sale) : async () {
-    saleIdToSale.add(sale.id, sale);
+    updateSaleList(sale);
   };
 
   public shared ({ caller }) func deleteSale(id : Text, pharmacyId : Text) : async ?Sale {
-    switch (saleIdToSale.get(id)) {
+    switch (saleIdToSaleList.get(pharmacyId)) {
       case (null) { Runtime.trap("Sale with id " # id # " not found") };
-      case (?sale) {
-        if (sale.pharmacyId != pharmacyId) {
-          Runtime.trap("Pharmacy id mismatch for sale " # id);
-        };
-        saleIdToSale.remove(id);
-        ?sale;
+      case (?list) {
+        let filteredList = list.filter(func(sale) { sale.id != id });
+        saleIdToSaleList.add(pharmacyId, filteredList);
       };
     };
+    null;
   };
 
   // -- PurchaseRecord Functions --
 
+  func updatePurchaseRecordList(record : PurchaseRecord) {
+    let existingList = switch (purchaseRecordIdToPurchaseRecordList.get(record.pharmacyId)) {
+      case (null) { List.empty<PurchaseRecord>() };
+      case (?list) { list };
+    };
+    existingList.add(record);
+    purchaseRecordIdToPurchaseRecordList.add(record.pharmacyId, existingList);
+  };
+
   public query ({ caller }) func getPurchases(pharmacyId : Text) : async [PurchaseRecord] {
-    purchaseRecordIdToPurchaseRecord.values().toArray().filter(func(record) { record.pharmacyId == pharmacyId });
+    switch (purchaseRecordIdToPurchaseRecordList.get(pharmacyId)) {
+      case (null) { [] };
+      case (?list) { list.toArray() };
+    };
   };
 
   public shared ({ caller }) func addPurchase(record : PurchaseRecord) : async () {
-    purchaseRecordIdToPurchaseRecord.add(record.id, record);
+    updatePurchaseRecordList(record);
+  };
+
+  // -- Miscellaneous Functions --
+
+  public shared ({ caller }) func addInventoryAdjustmentRecord(record : InventoryAdjustmentRecord) : async () {
+    inventoryAdjustmentRecords.add(record);
+  };
+
+  public query ({ caller }) func getInventoryAdjustmentRecords() : async [InventoryAdjustmentRecord] {
+    inventoryAdjustmentRecords.toArray();
+  };
+
+  public shared ({ caller }) func addUnauthorizedAccessAttempt(attempt : UnauthorizedAccessAttempt) : async () {
+    unauthorizedAccessAttempts.add(attempt);
+  };
+
+  public query ({ caller }) func getUnauthorizedAccessAttempts() : async [UnauthorizedAccessAttempt] {
+    unauthorizedAccessAttempts.toArray();
+  };
+
+  public shared ({ caller }) func addTransactionRecord(record : TransactionRecord) : async () {
+    transactionRecords.add(record);
+  };
+
+  public query ({ caller }) func getTransactionRecords() : async [TransactionRecord] {
+    transactionRecords.toArray();
   };
 };

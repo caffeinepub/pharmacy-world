@@ -256,6 +256,9 @@ export function SalesPage() {
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold text-primary">
                           Rs. {med.price.toFixed(2)}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            /tab
+                          </span>
                         </p>
                         <Badge
                           className={`text-xs ${
@@ -355,7 +358,7 @@ export function SalesPage() {
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Rs. {item.unitPrice.toFixed(2)} × {item.quantity}
+                    Rs. {item.unitPrice.toFixed(2)}/tab × {item.quantity}
                   </p>
                 </div>
               ))

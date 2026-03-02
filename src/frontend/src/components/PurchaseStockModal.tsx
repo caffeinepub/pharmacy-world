@@ -86,7 +86,12 @@ export function PurchaseStockModal({
       ? Number(tabletQty) || 0
       : (Number(boxQty) || 0) * resolvedTabletsPerBox;
 
-  const pp = Number(form.purchasePrice);
+  // If box mode: user enters price per BOX, convert to per-tablet
+  const rawPrice = Number(form.purchasePrice);
+  const pp =
+    entryMode === "boxes" && resolvedTabletsPerBox > 0
+      ? rawPrice / resolvedTabletsPerBox
+      : rawPrice;
   const disc = Number(form.discountPercent);
   const discountAmount = pp * (disc / 100);
   const netPrice = pp - discountAmount;
@@ -370,7 +375,9 @@ export function PurchaseStockModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="purchasePrice">
-                  Purchase Price/Unit (Rs.) *
+                  {entryMode === "boxes"
+                    ? "Purchase Price/Box (Rs.) *"
+                    : "Purchase Price/Tablet (Rs.) *"}
                 </Label>
                 <Input
                   id="purchasePrice"
@@ -424,32 +431,73 @@ export function PurchaseStockModal({
             </div>
 
             {/* Calculated summary */}
-            {totalQty > 0 && pp >= 0 && (
+            {totalQty > 0 && rawPrice >= 0 && (
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5 text-sm">
                 <p className="font-semibold text-foreground text-xs uppercase tracking-wide mb-2">
                   Purchase Summary
                 </p>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Purchase Price</span>
-                  <span className="font-mono">Rs. {pp.toFixed(2)}</span>
-                </div>
-                {disc > 0 && (
-                  <div className="flex justify-between text-emerald-600">
-                    <span>Discount ({disc}%)</span>
-                    <span className="font-mono">
-                      - Rs. {discountAmount.toFixed(2)}
-                    </span>
-                  </div>
+                {entryMode === "boxes" && resolvedTabletsPerBox > 0 ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Price/Box</span>
+                      <span className="font-mono">
+                        Rs. {rawPrice.toFixed(2)}
+                      </span>
+                    </div>
+                    {disc > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Discount ({disc}%)</span>
+                        <span className="font-mono">
+                          - Rs. {(rawPrice * (disc / 100)).toFixed(2)}/box
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Net Price/Box
+                      </span>
+                      <span className="font-mono font-semibold">
+                        Rs. {(rawPrice - rawPrice * (disc / 100)).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-primary/80">
+                      <span className="text-muted-foreground">
+                        Net Price/Tablet
+                      </span>
+                      <span className="font-mono">
+                        Rs. {netPrice.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Purchase Price/Tablet
+                      </span>
+                      <span className="font-mono">Rs. {pp.toFixed(2)}</span>
+                    </div>
+                    {disc > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Discount ({disc}%)</span>
+                        <span className="font-mono">
+                          - Rs. {discountAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Net Price/Tablet
+                      </span>
+                      <span className="font-mono font-semibold">
+                        Rs. {netPrice.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Net Price/Unit</span>
-                  <span className="font-mono font-semibold">
-                    Rs. {netPrice.toFixed(2)}
-                  </span>
-                </div>
                 <div className="flex justify-between border-t border-border pt-1.5 mt-1">
                   <span className="font-semibold">
-                    Total Cost ({totalQty} units)
+                    Total Cost ({totalQty} tablets)
                   </span>
                   <span className="font-mono font-bold text-primary">
                     Rs. {totalCost.toFixed(2)}

@@ -30,13 +30,32 @@ import { SuperAdminSetupPage } from "./pages/SuperAdminSetupPage";
 
 function RootRedirect() {
   const { isSuperAdminSetup, pharmacies, isLoading } = useSuperAdmin();
+  const [showSlowWarning, setShowSlowWarning] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => setShowSlowWarning(true), 8000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-3">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-sm text-muted-foreground">Loading...</p>
+          {showSlowWarning && (
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Taking longer than usual… Please wait or{" "}
+              <button
+                type="button"
+                className="underline text-primary hover:opacity-80"
+                onClick={() => window.location.reload()}
+              >
+                refresh the page
+              </button>
+            </p>
+          )}
         </div>
       </div>
     );

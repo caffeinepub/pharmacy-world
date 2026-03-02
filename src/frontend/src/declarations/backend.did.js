@@ -18,6 +18,15 @@ export const Account = IDL.Record({
   'enabled' : IDL.Bool,
   'pharmacyId' : IDL.Text,
 });
+export const InventoryAdjustmentRecord = IDL.Record({
+  'inventoryDifferences' : IDL.Opt(IDL.Text),
+  'adjustmentAmount' : IDL.Nat,
+  'timestamp' : IDL.Text,
+  'pharmacyId' : IDL.Text,
+  'medicineId' : IDL.Text,
+  'adjustedBy' : IDL.Text,
+  'reason' : IDL.Text,
+});
 export const Medicine = IDL.Record({
   'id' : IDL.Text,
   'manufacturer' : IDL.Text,
@@ -68,6 +77,22 @@ export const Sale = IDL.Record({
   'items' : IDL.Vec(SaleItem),
   'subtotal' : IDL.Float64,
 });
+export const TransactionRecord = IDL.Record({
+  'transactionType' : IDL.Text,
+  'source' : IDL.Text,
+  'performedBy' : IDL.Text,
+  'timestamp' : IDL.Text,
+  'pharmacyId' : IDL.Text,
+  'amount' : IDL.Float64,
+  'transactionId' : IDL.Text,
+});
+export const UnauthorizedAccessAttempt = IDL.Record({
+  'userId' : IDL.Text,
+  'timestamp' : IDL.Text,
+  'details' : IDL.Text,
+  'pharmacyId' : IDL.Text,
+  'resourceAttempted' : IDL.Text,
+});
 export const Pharmacy = IDL.Record({
   'id' : IDL.Text,
   'status' : IDL.Text,
@@ -84,6 +109,11 @@ export const SuperAdmin = IDL.Record({
 
 export const idlService = IDL.Service({
   'addAccount' : IDL.Func([Account], [], []),
+  'addInventoryAdjustmentRecord' : IDL.Func(
+      [InventoryAdjustmentRecord],
+      [],
+      [],
+    ),
   'addMedicine' : IDL.Func([Medicine], [], []),
   'addPharmacy' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -92,17 +122,54 @@ export const idlService = IDL.Service({
     ),
   'addPurchase' : IDL.Func([PurchaseRecord], [], []),
   'addSale' : IDL.Func([Sale], [], []),
+  'addTransactionRecord' : IDL.Func([TransactionRecord], [], []),
+  'addUnauthorizedAccessAttempt' : IDL.Func(
+      [UnauthorizedAccessAttempt],
+      [],
+      [],
+    ),
   'changeSuperAdminPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
   'deleteAccount' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'deleteMedicine' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'deletePharmacy' : IDL.Func([IDL.Text], [], []),
   'deleteSale' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(Sale)], []),
   'getAccounts' : IDL.Func([IDL.Text], [IDL.Vec(Account)], ['query']),
+  'getInventoryAdjustmentRecords' : IDL.Func(
+      [],
+      [IDL.Vec(InventoryAdjustmentRecord)],
+      ['query'],
+    ),
   'getMedicines' : IDL.Func([IDL.Text], [IDL.Vec(Medicine)], ['query']),
+  'getMedicinesByCategory' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(Medicine)],
+      ['query'],
+    ),
+  'getMedicinesByPriceRange' : IDL.Func(
+      [IDL.Text, IDL.Float64, IDL.Float64],
+      [IDL.Vec(Medicine)],
+      ['query'],
+    ),
+  'getMedicinesExpiringSoon' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(Medicine)],
+      ['query'],
+    ),
+  'getMedicinesLowStock' : IDL.Func([IDL.Text], [IDL.Vec(Medicine)], ['query']),
   'getPharmacies' : IDL.Func([], [IDL.Vec(Pharmacy)], ['query']),
   'getPurchases' : IDL.Func([IDL.Text], [IDL.Vec(PurchaseRecord)], ['query']),
   'getSales' : IDL.Func([IDL.Text], [IDL.Vec(Sale)], ['query']),
   'getSuperAdmin' : IDL.Func([], [IDL.Opt(SuperAdmin)], ['query']),
+  'getTransactionRecords' : IDL.Func(
+      [],
+      [IDL.Vec(TransactionRecord)],
+      ['query'],
+    ),
+  'getUnauthorizedAccessAttempts' : IDL.Func(
+      [],
+      [IDL.Vec(UnauthorizedAccessAttempt)],
+      ['query'],
+    ),
   'setupSuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
   'updateAccount' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],
@@ -149,6 +216,15 @@ export const idlFactory = ({ IDL }) => {
     'fullName' : IDL.Text,
     'enabled' : IDL.Bool,
     'pharmacyId' : IDL.Text,
+  });
+  const InventoryAdjustmentRecord = IDL.Record({
+    'inventoryDifferences' : IDL.Opt(IDL.Text),
+    'adjustmentAmount' : IDL.Nat,
+    'timestamp' : IDL.Text,
+    'pharmacyId' : IDL.Text,
+    'medicineId' : IDL.Text,
+    'adjustedBy' : IDL.Text,
+    'reason' : IDL.Text,
   });
   const Medicine = IDL.Record({
     'id' : IDL.Text,
@@ -200,6 +276,22 @@ export const idlFactory = ({ IDL }) => {
     'items' : IDL.Vec(SaleItem),
     'subtotal' : IDL.Float64,
   });
+  const TransactionRecord = IDL.Record({
+    'transactionType' : IDL.Text,
+    'source' : IDL.Text,
+    'performedBy' : IDL.Text,
+    'timestamp' : IDL.Text,
+    'pharmacyId' : IDL.Text,
+    'amount' : IDL.Float64,
+    'transactionId' : IDL.Text,
+  });
+  const UnauthorizedAccessAttempt = IDL.Record({
+    'userId' : IDL.Text,
+    'timestamp' : IDL.Text,
+    'details' : IDL.Text,
+    'pharmacyId' : IDL.Text,
+    'resourceAttempted' : IDL.Text,
+  });
   const Pharmacy = IDL.Record({
     'id' : IDL.Text,
     'status' : IDL.Text,
@@ -216,6 +308,11 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     'addAccount' : IDL.Func([Account], [], []),
+    'addInventoryAdjustmentRecord' : IDL.Func(
+        [InventoryAdjustmentRecord],
+        [],
+        [],
+      ),
     'addMedicine' : IDL.Func([Medicine], [], []),
     'addPharmacy' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -224,17 +321,58 @@ export const idlFactory = ({ IDL }) => {
       ),
     'addPurchase' : IDL.Func([PurchaseRecord], [], []),
     'addSale' : IDL.Func([Sale], [], []),
+    'addTransactionRecord' : IDL.Func([TransactionRecord], [], []),
+    'addUnauthorizedAccessAttempt' : IDL.Func(
+        [UnauthorizedAccessAttempt],
+        [],
+        [],
+      ),
     'changeSuperAdminPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
     'deleteAccount' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'deleteMedicine' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'deletePharmacy' : IDL.Func([IDL.Text], [], []),
     'deleteSale' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(Sale)], []),
     'getAccounts' : IDL.Func([IDL.Text], [IDL.Vec(Account)], ['query']),
+    'getInventoryAdjustmentRecords' : IDL.Func(
+        [],
+        [IDL.Vec(InventoryAdjustmentRecord)],
+        ['query'],
+      ),
     'getMedicines' : IDL.Func([IDL.Text], [IDL.Vec(Medicine)], ['query']),
+    'getMedicinesByCategory' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(Medicine)],
+        ['query'],
+      ),
+    'getMedicinesByPriceRange' : IDL.Func(
+        [IDL.Text, IDL.Float64, IDL.Float64],
+        [IDL.Vec(Medicine)],
+        ['query'],
+      ),
+    'getMedicinesExpiringSoon' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(Medicine)],
+        ['query'],
+      ),
+    'getMedicinesLowStock' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(Medicine)],
+        ['query'],
+      ),
     'getPharmacies' : IDL.Func([], [IDL.Vec(Pharmacy)], ['query']),
     'getPurchases' : IDL.Func([IDL.Text], [IDL.Vec(PurchaseRecord)], ['query']),
     'getSales' : IDL.Func([IDL.Text], [IDL.Vec(Sale)], ['query']),
     'getSuperAdmin' : IDL.Func([], [IDL.Opt(SuperAdmin)], ['query']),
+    'getTransactionRecords' : IDL.Func(
+        [],
+        [IDL.Vec(TransactionRecord)],
+        ['query'],
+      ),
+    'getUnauthorizedAccessAttempts' : IDL.Func(
+        [],
+        [IDL.Vec(UnauthorizedAccessAttempt)],
+        ['query'],
+      ),
     'setupSuperAdmin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
     'updateAccount' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],

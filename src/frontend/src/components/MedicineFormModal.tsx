@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useData } from "../contexts/DataContext";
@@ -199,19 +199,65 @@ export function MedicineFormModal({
 
           {/* Price section */}
           <div className="col-span-2">
+            {/* Per-tablet notice */}
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-3">
+              <Info className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-700 leading-snug">
+                <span className="font-semibold">Note:</span> Enter prices per
+                individual tablet / unit — not per box.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              {field(
-                "purchasePrice",
-                "Purchase Price (Rs.) *",
-                "number",
-                "0.00",
-              )}
-              {field(
-                "retailPrice",
-                "Retail/Sale Price (Rs.) *",
-                "number",
-                "0.00",
-              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="purchasePrice">
+                  Purchase Price/Tablet (Rs.) *
+                </Label>
+                <Input
+                  id="purchasePrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.purchasePrice}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      purchasePrice: e.target.value,
+                    }))
+                  }
+                  className={errors.purchasePrice ? "border-destructive" : ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Per tablet price
+                </p>
+                {errors.purchasePrice && (
+                  <p className="text-xs text-destructive">
+                    {errors.purchasePrice}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="retailPrice">Sale Price/Tablet (Rs.) *</Label>
+                <Input
+                  id="retailPrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.retailPrice}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      retailPrice: e.target.value,
+                    }))
+                  }
+                  className={errors.retailPrice ? "border-destructive" : ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Per tablet price
+                </p>
+                {errors.retailPrice && (
+                  <p className="text-xs text-destructive">
+                    {errors.retailPrice}
+                  </p>
+                )}
+              </div>
             </div>
             {margin !== null && (
               <p className="text-xs text-muted-foreground mt-1">
@@ -225,7 +271,7 @@ export function MedicineFormModal({
                 >
                   {margin}%
                 </span>{" "}
-                profit per unit
+                profit per tablet
               </p>
             )}
           </div>

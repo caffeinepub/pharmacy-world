@@ -118,6 +118,7 @@ export function SuperAdminDashboardPage() {
     activatePharmacy,
     deactivatePharmacy,
     changeSuperAdminPassword,
+    resetPharmacyAdminPassword,
     isLoading: pharmaciesLoading,
   } = useSuperAdmin();
   const navigate = useNavigate();
@@ -147,6 +148,16 @@ export function SuperAdminDashboardPage() {
   });
   const [cpErrors, setCpErrors] = useState<Record<string, string>>({});
   const [cpLoading, setCpLoading] = useState(false);
+
+  // Reset pharmacy admin password dialog
+  const [resetPasswordPharmacy, setResetPasswordPharmacy] =
+    useState<Pharmacy | null>(null);
+  const [rpForm, setRpForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [rpErrors, setRpErrors] = useState<Record<string, string>>({});
+  const [rpLoading, setRpLoading] = useState(false);
 
   // Redirect if not logged in as superadmin
   useEffect(() => {
@@ -287,6 +298,42 @@ export function SuperAdminDashboardPage() {
       toast.error("Failed to change password");
     } finally {
       setCpLoading(false);
+    }
+  };
+
+  const validateResetPassword = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!rpForm.newPassword) e.newPassword = "New password is required";
+    else if (rpForm.newPassword.length < 4)
+      e.newPassword = "Minimum 4 characters";
+    if (!rpForm.confirmPassword)
+      e.confirmPassword = "Please confirm new password";
+    else if (rpForm.newPassword !== rpForm.confirmPassword)
+      e.confirmPassword = "Passwords do not match";
+    setRpErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordPharmacy || !validateResetPassword()) return;
+    setRpLoading(true);
+    try {
+      const success = await resetPharmacyAdminPassword(
+        resetPasswordPharmacy.id,
+        rpForm.newPassword,
+      );
+      if (success) {
+        toast.success(
+          `Admin password for ${resetPasswordPharmacy.name} reset successfully!`,
+        );
+        setResetPasswordPharmacy(null);
+        setRpForm({ newPassword: "", confirmPassword: "" });
+        setRpErrors({});
+      }
+    } catch {
+      toast.error("Failed to reset password");
+    } finally {
+      setRpLoading(false);
     }
   };
 
@@ -585,6 +632,21 @@ export function SuperAdminDashboardPage() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
+
+                    {/* Reset Admin Password button */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                      onClick={() => {
+                        setResetPasswordPharmacy(pharmacy);
+                        setRpForm({ newPassword: "", confirmPassword: "" });
+                        setRpErrors({});
+                      }}
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Reset Admin Password
+                    </Button>
                   </CardContent>
                 </Card>
               );
@@ -830,6 +892,103 @@ export function SuperAdminDashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reset Pharmacy Admin Password Dialog */}
+      <Dialog
+        open={!!resetPasswordPharmacy}
+        onOpenChange={(o) => {
+          if (!o) {
+            setResetPasswordPharmacy(null);
+            setRpForm({ newPassword: "", confirmPassword: "" });
+            setRpErrors({});
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-amber-600" />
+              Reset Admin Password
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {resetPasswordPharmacy && (
+              <p className="text-sm text-muted-foreground">
+                Set a new password for the admin account of{" "}
+                <strong>{resetPasswordPharmacy.name}</strong>.
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-new">New Password *</Label>
+              <Input
+                id="rp-new"
+                type="password"
+                placeholder="Minimum 4 characters"
+                value={rpForm.newPassword}
+                onChange={(e) =>
+                  setRpForm((p) => ({ ...p, newPassword: e.target.value }))
+                }
+                className={rpErrors.newPassword ? "border-destructive" : ""}
+              />
+              {rpErrors.newPassword && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {rpErrors.newPassword}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-confirm">Confirm New Password *</Label>
+              <Input
+                id="rp-confirm"
+                type="password"
+                placeholder="Re-enter new password"
+                value={rpForm.confirmPassword}
+                onChange={(e) =>
+                  setRpForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                }
+                className={rpErrors.confirmPassword ? "border-destructive" : ""}
+              />
+              {rpErrors.confirmPassword && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {rpErrors.confirmPassword}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordPharmacy(null);
+                setRpForm({ newPassword: "", confirmPassword: "" });
+                setRpErrors({});
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={handleResetPassword}
+              disabled={rpLoading}
+            >
+              {rpLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                "Reset Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Change Master Password Dialog */}
       <Dialog

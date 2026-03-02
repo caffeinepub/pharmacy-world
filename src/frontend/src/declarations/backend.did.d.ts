@@ -20,6 +20,15 @@ export interface Account {
   'enabled' : boolean,
   'pharmacyId' : string,
 }
+export interface InventoryAdjustmentRecord {
+  'inventoryDifferences' : [] | [string],
+  'adjustmentAmount' : bigint,
+  'timestamp' : string,
+  'pharmacyId' : string,
+  'medicineId' : string,
+  'adjustedBy' : string,
+  'reason' : string,
+}
 export interface Medicine {
   'id' : string,
   'manufacturer' : string,
@@ -80,8 +89,28 @@ export interface SaleItem {
   'medicineName' : string,
 }
 export interface SuperAdmin { 'username' : string, 'password' : string }
+export interface TransactionRecord {
+  'transactionType' : string,
+  'source' : string,
+  'performedBy' : string,
+  'timestamp' : string,
+  'pharmacyId' : string,
+  'amount' : number,
+  'transactionId' : string,
+}
+export interface UnauthorizedAccessAttempt {
+  'userId' : string,
+  'timestamp' : string,
+  'details' : string,
+  'pharmacyId' : string,
+  'resourceAttempted' : string,
+}
 export interface _SERVICE {
   'addAccount' : ActorMethod<[Account], undefined>,
+  'addInventoryAdjustmentRecord' : ActorMethod<
+    [InventoryAdjustmentRecord],
+    undefined
+  >,
   'addMedicine' : ActorMethod<[Medicine], undefined>,
   'addPharmacy' : ActorMethod<
     [string, string, string, string, string],
@@ -89,17 +118,38 @@ export interface _SERVICE {
   >,
   'addPurchase' : ActorMethod<[PurchaseRecord], undefined>,
   'addSale' : ActorMethod<[Sale], undefined>,
+  'addTransactionRecord' : ActorMethod<[TransactionRecord], undefined>,
+  'addUnauthorizedAccessAttempt' : ActorMethod<
+    [UnauthorizedAccessAttempt],
+    undefined
+  >,
   'changeSuperAdminPassword' : ActorMethod<[string, string], boolean>,
   'deleteAccount' : ActorMethod<[string, string], undefined>,
   'deleteMedicine' : ActorMethod<[string, string], undefined>,
   'deletePharmacy' : ActorMethod<[string], undefined>,
   'deleteSale' : ActorMethod<[string, string], [] | [Sale]>,
   'getAccounts' : ActorMethod<[string], Array<Account>>,
+  'getInventoryAdjustmentRecords' : ActorMethod<
+    [],
+    Array<InventoryAdjustmentRecord>
+  >,
   'getMedicines' : ActorMethod<[string], Array<Medicine>>,
+  'getMedicinesByCategory' : ActorMethod<[string, string], Array<Medicine>>,
+  'getMedicinesByPriceRange' : ActorMethod<
+    [string, number, number],
+    Array<Medicine>
+  >,
+  'getMedicinesExpiringSoon' : ActorMethod<[string], Array<Medicine>>,
+  'getMedicinesLowStock' : ActorMethod<[string], Array<Medicine>>,
   'getPharmacies' : ActorMethod<[], Array<Pharmacy>>,
   'getPurchases' : ActorMethod<[string], Array<PurchaseRecord>>,
   'getSales' : ActorMethod<[string], Array<Sale>>,
   'getSuperAdmin' : ActorMethod<[], [] | [SuperAdmin]>,
+  'getTransactionRecords' : ActorMethod<[], Array<TransactionRecord>>,
+  'getUnauthorizedAccessAttempts' : ActorMethod<
+    [],
+    Array<UnauthorizedAccessAttempt>
+  >,
   'setupSuperAdmin' : ActorMethod<[string, string], boolean>,
   'updateAccount' : ActorMethod<
     [string, string, string, string, string, string, boolean],

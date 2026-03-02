@@ -19,11 +19,11 @@ async function getActor(): Promise<backendInterface> {
   return _actor;
 }
 
-/** Retry a function up to `retries` times with exponential backoff */
+/** Retry a function up to `retries` times with shorter backoff to avoid UI hangs */
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 3,
-  delayMs = 1500,
+  delayMs = 800,
 ): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
@@ -39,6 +39,16 @@ async function withRetry<T>(
     }
   }
   throw lastErr;
+}
+
+/** Wrap a promise with a timeout */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), ms),
+    ),
+  ]);
 }
 
 interface AddPharmacyInput {
@@ -65,6 +75,10 @@ interface SuperAdminContextType {
   superAdminLogout: () => void;
   changeSuperAdminPassword: (
     oldPassword: string,
+    newPassword: string,
+  ) => Promise<boolean>;
+  resetPharmacyAdminPassword: (
+    pharmacyId: string,
     newPassword: string,
   ) => Promise<boolean>;
   refreshPharmacies: () => Promise<void>;
@@ -127,10 +141,13 @@ export function SuperAdminProvider({
   useEffect(() => {
     async function init() {
       try {
-        const [sa, phs] = await withRetry(async () => {
-          const actor = await getActor();
-          return Promise.all([actor.getSuperAdmin(), actor.getPharmacies()]);
-        });
+        const [sa, phs] = await withTimeout(
+          withRetry(async () => {
+            const actor = await getActor();
+            return Promise.all([actor.getSuperAdmin(), actor.getPharmacies()]);
+          }),
+          10000,
+        );
         if (sa) {
           setSuperAdmin(sa);
           setIsSuperAdminSetup(true);
@@ -337,6 +354,36 @@ export function SuperAdminProvider({
     [superAdmin],
   );
 
+  const resetPharmacyAdminPassword = useCallback(
+    async (pharmacyId: string, newPassword: string): Promise<boolean> => {
+      try {
+        const actor = await getActor();
+        // Get all accounts for this pharmacy and find the admin account
+        const accounts = await actor.getAccounts(pharmacyId);
+        const adminAccount = accounts.find((a) => a.role === "admin");
+        if (!adminAccount) {
+          toast.error("Admin account not found for this pharmacy");
+          return false;
+        }
+        await actor.updateAccount(
+          adminAccount.id,
+          pharmacyId,
+          adminAccount.username,
+          newPassword,
+          adminAccount.fullName,
+          adminAccount.role,
+          adminAccount.enabled,
+        );
+        return true;
+      } catch (err) {
+        console.error("Failed to reset pharmacy admin password:", err);
+        toast.error("Failed to reset password");
+        return false;
+      }
+    },
+    [],
+  );
+
   return (
     <SuperAdminContext.Provider
       value={{
@@ -353,6 +400,7 @@ export function SuperAdminProvider({
         superAdminLogin,
         superAdminLogout,
         changeSuperAdminPassword,
+        resetPharmacyAdminPassword,
         refreshPharmacies,
       }}
     >

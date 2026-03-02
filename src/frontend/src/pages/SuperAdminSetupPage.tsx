@@ -74,6 +74,16 @@ export function SuperAdminSetupPage() {
           </p>
         </div>
 
+        {/* Re-setup notice — always shown on this page */}
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>
+            <strong>System Upgraded</strong> — Please set up your Master Admin
+            account again. Your pharmacies and data are safe; just re-enter your
+            credentials to continue.
+          </span>
+        </div>
+
         <Card className="shadow-2xl border-border">
           <CardHeader className="pb-3 pt-6 text-center">
             <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 mx-auto mb-3">

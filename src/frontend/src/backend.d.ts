@@ -17,10 +17,6 @@ export interface Account {
     enabled: boolean;
     pharmacyId: string;
 }
-export interface SuperAdmin {
-    username: string;
-    password: string;
-}
 export interface Pharmacy {
     id: string;
     status: string;
@@ -29,6 +25,10 @@ export interface Pharmacy {
     createdAt: string;
     address: string;
     phone: string;
+}
+export interface SuperAdmin {
+    username: string;
+    password: string;
 }
 export interface PurchaseRecord {
     id: string;
@@ -44,6 +44,15 @@ export interface PurchaseRecord {
     medicineId: string;
     netPurchasePrice: number;
     medicineName: string;
+}
+export interface InventoryAdjustmentRecord {
+    inventoryDifferences?: string;
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
 }
 export interface Medicine {
     id: string;
@@ -73,6 +82,13 @@ export interface Sale {
     items: Array<SaleItem>;
     subtotal: number;
 }
+export interface UnauthorizedAccessAttempt {
+    userId: string;
+    timestamp: string;
+    details: string;
+    pharmacyId: string;
+    resourceAttempted: string;
+}
 export interface SaleItem {
     quantity: bigint;
     unitPrice: number;
@@ -80,23 +96,42 @@ export interface SaleItem {
     subtotal: number;
     medicineName: string;
 }
+export interface TransactionRecord {
+    transactionType: string;
+    source: string;
+    performedBy: string;
+    timestamp: string;
+    pharmacyId: string;
+    amount: number;
+    transactionId: string;
+}
 export interface backendInterface {
     addAccount(account: Account): Promise<void>;
+    addInventoryAdjustmentRecord(record: InventoryAdjustmentRecord): Promise<void>;
     addMedicine(medicine: Medicine): Promise<void>;
     addPharmacy(id: string, name: string, address: string, phone: string, createdAt: string): Promise<void>;
     addPurchase(record: PurchaseRecord): Promise<void>;
     addSale(sale: Sale): Promise<void>;
+    addTransactionRecord(record: TransactionRecord): Promise<void>;
+    addUnauthorizedAccessAttempt(attempt: UnauthorizedAccessAttempt): Promise<void>;
     changeSuperAdminPassword(oldPassword: string, newPassword: string): Promise<boolean>;
     deleteAccount(id: string, pharmacyId: string): Promise<void>;
     deleteMedicine(id: string, pharmacyId: string): Promise<void>;
     deletePharmacy(id: string): Promise<void>;
     deleteSale(id: string, pharmacyId: string): Promise<Sale | null>;
     getAccounts(pharmacyId: string): Promise<Array<Account>>;
+    getInventoryAdjustmentRecords(): Promise<Array<InventoryAdjustmentRecord>>;
     getMedicines(pharmacyId: string): Promise<Array<Medicine>>;
+    getMedicinesByCategory(pharmacyId: string, category: string): Promise<Array<Medicine>>;
+    getMedicinesByPriceRange(pharmacyId: string, minPrice: number, maxPrice: number): Promise<Array<Medicine>>;
+    getMedicinesExpiringSoon(pharmacyId: string): Promise<Array<Medicine>>;
+    getMedicinesLowStock(pharmacyId: string): Promise<Array<Medicine>>;
     getPharmacies(): Promise<Array<Pharmacy>>;
     getPurchases(pharmacyId: string): Promise<Array<PurchaseRecord>>;
     getSales(pharmacyId: string): Promise<Array<Sale>>;
     getSuperAdmin(): Promise<SuperAdmin | null>;
+    getTransactionRecords(): Promise<Array<TransactionRecord>>;
+    getUnauthorizedAccessAttempts(): Promise<Array<UnauthorizedAccessAttempt>>;
     setupSuperAdmin(username: string, password: string): Promise<boolean>;
     updateAccount(id: string, pharmacyId: string, username: string, password: string, fullName: string, role: string, enabled: boolean): Promise<void>;
     updateMedicine(id: string, pharmacyId: string, name: string, category: string, price: number, purchasePrice: number, retailPrice: number, quantity: bigint, expiryDate: string, manufacturer: string, lowStockThreshold: bigint, rackNumber: string): Promise<void>;

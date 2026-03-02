@@ -99,10 +99,6 @@ export interface Account {
     enabled: boolean;
     pharmacyId: string;
 }
-export interface SuperAdmin {
-    username: string;
-    password: string;
-}
 export interface Pharmacy {
     id: string;
     status: string;
@@ -111,6 +107,10 @@ export interface Pharmacy {
     createdAt: string;
     address: string;
     phone: string;
+}
+export interface SuperAdmin {
+    username: string;
+    password: string;
 }
 export interface PurchaseRecord {
     id: string;
@@ -126,6 +126,15 @@ export interface PurchaseRecord {
     medicineId: string;
     netPurchasePrice: number;
     medicineName: string;
+}
+export interface InventoryAdjustmentRecord {
+    inventoryDifferences?: string;
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
 }
 export interface Medicine {
     id: string;
@@ -155,6 +164,13 @@ export interface Sale {
     items: Array<SaleItem>;
     subtotal: number;
 }
+export interface UnauthorizedAccessAttempt {
+    userId: string;
+    timestamp: string;
+    details: string;
+    pharmacyId: string;
+    resourceAttempted: string;
+}
 export interface SaleItem {
     quantity: bigint;
     unitPrice: number;
@@ -162,23 +178,42 @@ export interface SaleItem {
     subtotal: number;
     medicineName: string;
 }
+export interface TransactionRecord {
+    transactionType: string;
+    source: string;
+    performedBy: string;
+    timestamp: string;
+    pharmacyId: string;
+    amount: number;
+    transactionId: string;
+}
 export interface backendInterface {
     addAccount(account: Account): Promise<void>;
+    addInventoryAdjustmentRecord(record: InventoryAdjustmentRecord): Promise<void>;
     addMedicine(medicine: Medicine): Promise<void>;
     addPharmacy(id: string, name: string, address: string, phone: string, createdAt: string): Promise<void>;
     addPurchase(record: PurchaseRecord): Promise<void>;
     addSale(sale: Sale): Promise<void>;
+    addTransactionRecord(record: TransactionRecord): Promise<void>;
+    addUnauthorizedAccessAttempt(attempt: UnauthorizedAccessAttempt): Promise<void>;
     changeSuperAdminPassword(oldPassword: string, newPassword: string): Promise<boolean>;
     deleteAccount(id: string, pharmacyId: string): Promise<void>;
     deleteMedicine(id: string, pharmacyId: string): Promise<void>;
     deletePharmacy(id: string): Promise<void>;
     deleteSale(id: string, pharmacyId: string): Promise<Sale | null>;
     getAccounts(pharmacyId: string): Promise<Array<Account>>;
+    getInventoryAdjustmentRecords(): Promise<Array<InventoryAdjustmentRecord>>;
     getMedicines(pharmacyId: string): Promise<Array<Medicine>>;
+    getMedicinesByCategory(pharmacyId: string, category: string): Promise<Array<Medicine>>;
+    getMedicinesByPriceRange(pharmacyId: string, minPrice: number, maxPrice: number): Promise<Array<Medicine>>;
+    getMedicinesExpiringSoon(pharmacyId: string): Promise<Array<Medicine>>;
+    getMedicinesLowStock(pharmacyId: string): Promise<Array<Medicine>>;
     getPharmacies(): Promise<Array<Pharmacy>>;
     getPurchases(pharmacyId: string): Promise<Array<PurchaseRecord>>;
     getSales(pharmacyId: string): Promise<Array<Sale>>;
     getSuperAdmin(): Promise<SuperAdmin | null>;
+    getTransactionRecords(): Promise<Array<TransactionRecord>>;
+    getUnauthorizedAccessAttempts(): Promise<Array<UnauthorizedAccessAttempt>>;
     setupSuperAdmin(username: string, password: string): Promise<boolean>;
     updateAccount(id: string, pharmacyId: string, username: string, password: string, fullName: string, role: string, enabled: boolean): Promise<void>;
     updateMedicine(id: string, pharmacyId: string, name: string, category: string, price: number, purchasePrice: number, retailPrice: number, quantity: bigint, expiryDate: string, manufacturer: string, lowStockThreshold: bigint, rackNumber: string): Promise<void>;
@@ -187,7 +222,7 @@ export interface backendInterface {
     verifyAccount(pharmacyId: string, username: string, password: string): Promise<Account | null>;
     verifySuperAdmin(username: string, password: string): Promise<boolean>;
 }
-import type { Account as _Account, Sale as _Sale, SuperAdmin as _SuperAdmin } from "./declarations/backend.did.d.ts";
+import type { Account as _Account, InventoryAdjustmentRecord as _InventoryAdjustmentRecord, Sale as _Sale, SuperAdmin as _SuperAdmin } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async addAccount(arg0: Account): Promise<void> {
@@ -201,6 +236,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addAccount(arg0);
+            return result;
+        }
+    }
+    async addInventoryAdjustmentRecord(arg0: InventoryAdjustmentRecord): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addInventoryAdjustmentRecord(to_candid_InventoryAdjustmentRecord_n1(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addInventoryAdjustmentRecord(to_candid_InventoryAdjustmentRecord_n1(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -257,6 +306,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addSale(arg0);
+            return result;
+        }
+    }
+    async addTransactionRecord(arg0: TransactionRecord): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addTransactionRecord(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addTransactionRecord(arg0);
+            return result;
+        }
+    }
+    async addUnauthorizedAccessAttempt(arg0: UnauthorizedAccessAttempt): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addUnauthorizedAccessAttempt(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addUnauthorizedAccessAttempt(arg0);
             return result;
         }
     }
@@ -320,14 +397,14 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.deleteSale(arg0, arg1);
-                return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.deleteSale(arg0, arg1);
-            return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
         }
     }
     async getAccounts(arg0: string): Promise<Array<Account>> {
@@ -344,6 +421,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getInventoryAdjustmentRecords(): Promise<Array<InventoryAdjustmentRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getInventoryAdjustmentRecords();
+                return from_candid_vec_n4(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getInventoryAdjustmentRecords();
+            return from_candid_vec_n4(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getMedicines(arg0: string): Promise<Array<Medicine>> {
         if (this.processError) {
             try {
@@ -355,6 +446,62 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getMedicines(arg0);
+            return result;
+        }
+    }
+    async getMedicinesByCategory(arg0: string, arg1: string): Promise<Array<Medicine>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMedicinesByCategory(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMedicinesByCategory(arg0, arg1);
+            return result;
+        }
+    }
+    async getMedicinesByPriceRange(arg0: string, arg1: number, arg2: number): Promise<Array<Medicine>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMedicinesByPriceRange(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMedicinesByPriceRange(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async getMedicinesExpiringSoon(arg0: string): Promise<Array<Medicine>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMedicinesExpiringSoon(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMedicinesExpiringSoon(arg0);
+            return result;
+        }
+    }
+    async getMedicinesLowStock(arg0: string): Promise<Array<Medicine>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMedicinesLowStock(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMedicinesLowStock(arg0);
             return result;
         }
     }
@@ -404,14 +551,42 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getSuperAdmin();
-                return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getSuperAdmin();
-            return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getTransactionRecords(): Promise<Array<TransactionRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getTransactionRecords();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getTransactionRecords();
+            return result;
+        }
+    }
+    async getUnauthorizedAccessAttempts(): Promise<Array<UnauthorizedAccessAttempt>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUnauthorizedAccessAttempts();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUnauthorizedAccessAttempts();
+            return result;
         }
     }
     async setupSuperAdmin(arg0: string, arg1: string): Promise<boolean> {
@@ -488,14 +663,14 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.verifyAccount(arg0, arg1, arg2);
-                return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.verifyAccount(arg0, arg1, arg2);
-            return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
         }
     }
     async verifySuperAdmin(arg0: string, arg1: string): Promise<boolean> {
@@ -513,14 +688,80 @@ export class Backend implements backendInterface {
         }
     }
 }
-function from_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Sale]): Sale | null {
+function from_candid_InventoryAdjustmentRecord_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _InventoryAdjustmentRecord): InventoryAdjustmentRecord {
+    return from_candid_record_n6(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Sale]): Sale | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_SuperAdmin]): SuperAdmin | null {
+function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Account]): Account | null {
+function from_candid_opt_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_SuperAdmin]): SuperAdmin | null {
     return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Account]): Account | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    inventoryDifferences: [] | [string];
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
+}): {
+    inventoryDifferences?: string;
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
+} {
+    return {
+        inventoryDifferences: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.inventoryDifferences)),
+        adjustmentAmount: value.adjustmentAmount,
+        timestamp: value.timestamp,
+        pharmacyId: value.pharmacyId,
+        medicineId: value.medicineId,
+        adjustedBy: value.adjustedBy,
+        reason: value.reason
+    };
+}
+function from_candid_vec_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_InventoryAdjustmentRecord>): Array<InventoryAdjustmentRecord> {
+    return value.map((x)=>from_candid_InventoryAdjustmentRecord_n5(_uploadFile, _downloadFile, x));
+}
+function to_candid_InventoryAdjustmentRecord_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: InventoryAdjustmentRecord): _InventoryAdjustmentRecord {
+    return to_candid_record_n2(_uploadFile, _downloadFile, value);
+}
+function to_candid_record_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    inventoryDifferences?: string;
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
+}): {
+    inventoryDifferences: [] | [string];
+    adjustmentAmount: bigint;
+    timestamp: string;
+    pharmacyId: string;
+    medicineId: string;
+    adjustedBy: string;
+    reason: string;
+} {
+    return {
+        inventoryDifferences: value.inventoryDifferences ? candid_some(value.inventoryDifferences) : candid_none(),
+        adjustmentAmount: value.adjustmentAmount,
+        timestamp: value.timestamp,
+        pharmacyId: value.pharmacyId,
+        medicineId: value.medicineId,
+        adjustedBy: value.adjustedBy,
+        reason: value.reason
+    };
 }
 export interface CreateActorOptions {
     agent?: Agent;

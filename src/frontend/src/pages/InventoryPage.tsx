@@ -171,7 +171,7 @@ export function InventoryPage() {
                   Purchase Price
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-right">
-                  Retail Price
+                  Sale Price/Tab
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-center">
                   Qty
@@ -219,6 +219,9 @@ export function InventoryPage() {
                       </TableCell>
                       <TableCell className="text-sm text-right font-mono font-semibold">
                         Rs.{rp.toFixed(2)}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          /tab
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <span

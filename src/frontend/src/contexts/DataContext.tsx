@@ -457,16 +457,19 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
   const deleteSale = useCallback(
     async (id: string) => {
       try {
+        // Find sale in local state BEFORE deleting so we can restore stock
+        const saleToDelete = sales.find((s) => s.id === id);
+
         const actor = await getActor();
-        const deletedSale = await actor.deleteSale(id, pharmacyId);
-        if (deletedSale) {
-          // Restore stock for each item
-          const currentMeds = medicines;
+        await actor.deleteSale(id, pharmacyId);
+
+        // Restore stock using local sale data
+        if (saleToDelete && saleToDelete.items.length > 0) {
           await Promise.all(
-            deletedSale.items.map(async (item) => {
-              const med = currentMeds.find((m) => m.id === item.medicineId);
+            saleToDelete.items.map(async (item) => {
+              const med = medicines.find((m) => m.id === item.medicineId);
               if (med) {
-                const newQty = med.quantity + Number(item.quantity);
+                const newQty = med.quantity + item.quantity;
                 await actor.updateMedicineQuantity(
                   item.medicineId,
                   pharmacyId,
@@ -475,24 +478,24 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
               }
             }),
           );
-          // Update local state
-          setSales((prev) => prev.filter((s) => s.id !== id));
+        }
+
+        // Update local state
+        setSales((prev) => prev.filter((s) => s.id !== id));
+        if (saleToDelete) {
           setMedicines((prev) =>
             prev.map((med) => {
-              const item = deletedSale.items.find(
+              const item = saleToDelete.items.find(
                 (i) => i.medicineId === med.id,
               );
               if (item)
                 return {
                   ...med,
-                  quantity: med.quantity + Number(item.quantity),
+                  quantity: med.quantity + item.quantity,
                 };
               return med;
             }),
           );
-        } else {
-          // Sale not found, just remove from local state
-          setSales((prev) => prev.filter((s) => s.id !== id));
         }
       } catch (err) {
         console.error("Failed to delete sale:", err);
@@ -500,7 +503,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, medicines],
+    [pharmacyId, medicines, sales],
   );
 
   const deductStock = useCallback(
