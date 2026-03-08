@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, Loader2, Lock, Shield, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSuperAdmin } from "../contexts/SuperAdminContext";
 
@@ -17,6 +17,24 @@ export function SuperAdminSetupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [loadingMsg, setLoadingMsg] = useState("Creating Account...");
+
+  // Update loading message as retries happen
+  useEffect(() => {
+    if (!loading) {
+      setRetryCount(0);
+      setLoadingMsg("Creating Account...");
+      return;
+    }
+    if (retryCount === 0) {
+      setLoadingMsg("Creating Account...");
+    } else if (retryCount <= 3) {
+      setLoadingMsg("Server is starting up, please wait...");
+    } else {
+      setLoadingMsg(`Still connecting... (attempt ${retryCount})`);
+    }
+  }, [loading, retryCount]);
 
   // If already set up, redirect to login
   if (isSuperAdminSetup) {
@@ -39,21 +57,54 @@ export function SuperAdminSetupPage() {
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    try {
-      await setupSuperAdmin(username.trim(), password);
-      toast.success("Master admin account created successfully!");
-      await navigate({ to: "/superadmin/dashboard" });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("already exists")) {
-        toast.error("Master admin already set up. Redirecting to login...");
-        setTimeout(() => navigate({ to: "/superadmin/login" }), 1500);
-      } else {
-        toast.error("Failed to create master admin account. Please try again.");
+
+    // Auto-retry the setup call up to 10 times with increasing delays
+    // so user doesn't have to manually click again on cold start errors.
+    const MAX_RETRIES = 10;
+    let lastErr: unknown = null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        await setupSuperAdmin(username.trim(), password);
+        toast.success("Master admin account created successfully!");
+        await navigate({ to: "/superadmin/dashboard" });
+        setLoading(false);
+        return; // success
+      } catch (err: unknown) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+
+        // If already exists -- no point retrying
+        if (msg.includes("already exists")) {
+          toast.info("Master admin already set up. Redirecting to login...");
+          setTimeout(() => navigate({ to: "/superadmin/login" }), 1500);
+          setLoading(false);
+          return;
+        }
+
+        // For connection/timeout errors: wait then retry silently
+        if (attempt < MAX_RETRIES - 1) {
+          setRetryCount(attempt + 1);
+          const delay = Math.min(2000 * (attempt + 1), 8000);
+          await new Promise((r) => setTimeout(r, delay));
+          // Continue loop
+        }
       }
-    } finally {
-      setLoading(false);
     }
+
+    // All retries exhausted
+    const finalMsg =
+      lastErr instanceof Error ? lastErr.message : String(lastErr);
+    if (finalMsg.includes("timed out") || finalMsg.includes("timeout")) {
+      toast.error(
+        "Backend is taking too long to start. Please refresh the page (F5) and try again.",
+      );
+    } else {
+      toast.error(
+        "Could not connect to backend. Please refresh the page (F5) and try again.",
+      );
+    }
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -72,16 +123,6 @@ export function SuperAdminSetupPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Multi-Pharmacy Management System
           </p>
-        </div>
-
-        {/* Re-setup notice — always shown on this page */}
-        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>
-            <strong>System Upgraded</strong> — Please set up your Master Admin
-            account again. Your pharmacies and data are safe; just re-enter your
-            credentials to continue.
-          </span>
         </div>
 
         <Card className="shadow-2xl border-border">
@@ -182,7 +223,7 @@ export function SuperAdminSetupPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Account...
+                  {loadingMsg}
                 </>
               ) : (
                 "Create Master Admin Account"

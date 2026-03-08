@@ -29,7 +29,11 @@ import { isPharmacyActive, useSuperAdmin } from "../contexts/SuperAdminContext";
 
 export function LoginPage() {
   const { login, loginByCredentials } = useAuth();
-  const { pharmacies, isLoading: pharmaciesLoading } = useSuperAdmin();
+  const {
+    pharmacies,
+    isLoading: pharmaciesLoading,
+    initFailed,
+  } = useSuperAdmin();
   const navigate = useNavigate();
 
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<string>(() => {
@@ -39,6 +43,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("Signing in...");
 
   // Sync selected pharmacy to localStorage
   useEffect(() => {
@@ -74,6 +79,7 @@ export function LoginPage() {
     }
 
     setLoading(true);
+    setLoadingMsg("Signing in...");
 
     // Check if pharmacy is active / not expired
     if (selectedPharmacy && !isPharmacyActive(selectedPharmacy)) {
@@ -89,33 +95,59 @@ export function LoginPage() {
       return;
     }
 
-    try {
-      const account = await loginByCredentials(
-        selectedPharmacyId,
-        username.trim(),
-        password,
-      );
+    const MAX_RETRIES = 10;
+    let lastErr: unknown = null;
 
-      if (!account) {
-        setError("Invalid username or password");
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const account = await loginByCredentials(
+          selectedPharmacyId,
+          username.trim(),
+          password,
+        );
+
+        if (!account) {
+          setError("Invalid username or password. Please check and try again.");
+          setLoading(false);
+          return;
+        }
+
+        if (!account.enabled) {
+          setError("This account has been disabled. Contact administrator.");
+          setLoading(false);
+          return;
+        }
+
+        login(account);
+        toast.success(`Welcome back, ${account.fullName}!`);
+        await navigate({ to: "/dashboard" });
         setLoading(false);
-        return;
+        return; // success
+      } catch (err) {
+        lastErr = err;
+        if (attempt < MAX_RETRIES - 1) {
+          if (attempt >= 1) {
+            setLoadingMsg(
+              `Server is starting up... (${attempt + 1}/${MAX_RETRIES})`,
+            );
+          }
+          const delay = Math.min(2000 * (attempt + 1), 8000);
+          await new Promise<void>((r) => setTimeout(r, delay));
+        }
       }
-
-      if (!account.enabled) {
-        setError("This account has been disabled. Contact administrator.");
-        setLoading(false);
-        return;
-      }
-
-      login(account);
-      toast.success(`Welcome back, ${account.fullName}!`);
-      await navigate({ to: "/dashboard" });
-    } catch {
-      setError("Login failed. Please try again.");
-    } finally {
-      setLoading(false);
     }
+
+    // All retries exhausted
+    const finalMsg =
+      lastErr instanceof Error ? lastErr.message : String(lastErr);
+    if (finalMsg.includes("timed out") || finalMsg.includes("timeout")) {
+      setError(
+        "Server is taking too long to start. Please refresh the page (F5) and try again.",
+      );
+    } else {
+      setError("Connection error. Please refresh the page (F5) and try again.");
+    }
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -123,6 +155,55 @@ export function LoginPage() {
   };
 
   const displayName = selectedPharmacy?.name ?? "Pharmacy World";
+
+  // Full-page loading while connecting to backend
+  if (pharmaciesLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary flex items-center justify-center p-4">
+        <div className="text-center space-y-4" data-ocid="login.loading_state">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-2 shadow-lg">
+            <Pill className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">Pharmacy World</h1>
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-sm">
+              Connecting to server, please wait...
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            First load may take up to 30 seconds while the server starts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Full-page error if init permanently failed
+  if (initFailed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary flex items-center justify-center p-4">
+        <div
+          className="text-center space-y-4 max-w-sm"
+          data-ocid="login.error_state"
+        >
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-destructive/10 mb-2">
+            <AlertCircle className="w-8 h-8 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">
+            Connection Failed
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Could not connect to server. Please check your internet connection
+            and try again.
+          </p>
+          <Button onClick={() => window.location.reload()} className="w-full">
+            Refresh Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary flex items-center justify-center p-4">
@@ -269,7 +350,7 @@ export function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {loadingMsg}
                 </>
               ) : (
                 "Sign In"

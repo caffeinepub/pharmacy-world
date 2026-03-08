@@ -26,6 +26,17 @@ interface CartItem {
   quantity: number;
 }
 
+function getPriceUnit(category: string): string {
+  if (
+    /syrup|drop|injection|inj|cream|ointment|lotion|gel|suspension|liquid|bottle|sachet|powder|spray|inhaler|patch|suppository/i.test(
+      category,
+    )
+  ) {
+    return "/pc";
+  }
+  return "/tab";
+}
+
 export function SalesPage() {
   const { medicines, addSale, deductStock } = useData();
   const { currentUser } = useAuth();
@@ -257,7 +268,7 @@ export function SalesPage() {
                         <p className="text-sm font-bold text-primary">
                           Rs. {med.price.toFixed(2)}
                           <span className="text-xs font-normal text-muted-foreground">
-                            /tab
+                            {getPriceUnit(med.category)}
                           </span>
                         </p>
                         <Badge
@@ -358,7 +369,15 @@ export function SalesPage() {
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Rs. {item.unitPrice.toFixed(2)}/tab × {item.quantity}
+                    {(() => {
+                      const medForCart = medicines.find(
+                        (m) => m.id === item.medicineId,
+                      );
+                      const priceUnit = getPriceUnit(
+                        medForCart?.category ?? "",
+                      );
+                      return `Rs. ${item.unitPrice.toFixed(2)}${priceUnit} × ${item.quantity}`;
+                    })()}
                   </p>
                 </div>
               ))

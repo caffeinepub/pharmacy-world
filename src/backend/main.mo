@@ -3,12 +3,11 @@ import Nat "mo:core/Nat";
 import Tex "mo:core/Text";
 import Float "mo:core/Float";
 import Order "mo:core/Order";
-import Runtime "mo:core/Runtime";
 import List "mo:core/List";
 import Iter "mo:core/Iter";
+import Migration "migration";
 
-
-
+(with migration = Migration.run)
 actor {
   public type SuperAdmin = {
     username : Text;
@@ -118,17 +117,15 @@ actor {
     source : Text;
   };
 
-  var superAdmin : ?SuperAdmin = null;
-
-  // Persistent Storage
-  let pharmacyIdToPharmacy = Map.empty<Text, Pharmacy>();
-  let accountIdToAccountList = Map.empty<Text, List.List<Account>>();
-  let medicineIdToMedicineList = Map.empty<Text, List.List<Medicine>>();
-  let saleIdToSaleList = Map.empty<Text, List.List<Sale>>();
-  let purchaseRecordIdToPurchaseRecordList = Map.empty<Text, List.List<PurchaseRecord>>();
-  let inventoryAdjustmentRecords = List.empty<InventoryAdjustmentRecord>();
-  let unauthorizedAccessAttempts = List.empty<UnauthorizedAccessAttempt>();
-  let transactionRecords = List.empty<TransactionRecord>();
+  stable var superAdmin : ?SuperAdmin = null;
+  stable let pharmacyIdToPharmacy : Map.Map<Text, Pharmacy> = Map.empty<Text, Pharmacy>();
+  stable let accountIdToAccountList : Map.Map<Text, List.List<Account>> = Map.empty<Text, List.List<Account>>();
+  stable let medicineIdToMedicineList : Map.Map<Text, List.List<Medicine>> = Map.empty<Text, List.List<Medicine>>();
+  stable let saleIdToSaleList : Map.Map<Text, List.List<Sale>> = Map.empty<Text, List.List<Sale>>();
+  stable let purchaseRecordIdToPurchaseRecordList : Map.Map<Text, List.List<PurchaseRecord>> = Map.empty<Text, List.List<PurchaseRecord>>();
+  stable let inventoryAdjustmentRecords : List.List<InventoryAdjustmentRecord> = List.empty<InventoryAdjustmentRecord>();
+  stable let unauthorizedAccessAttempts : List.List<UnauthorizedAccessAttempt> = List.empty<UnauthorizedAccessAttempt>();
+  stable let transactionRecords : List.List<TransactionRecord> = List.empty<TransactionRecord>();
 
   // -- SuperAdmin Functions --
 
@@ -188,7 +185,7 @@ actor {
 
   public shared ({ caller }) func updatePharmacyStatus(id : Text, status : Text, expiresAt : Text) : async () {
     switch (pharmacyIdToPharmacy.get(id)) {
-      case (null) { Runtime.trap("Pharmacy with id " # id # " not found") };
+      case (null) { () };
       case (?existing) {
         let updatedPharmacy = { existing with status; expiresAt };
         pharmacyIdToPharmacy.add(id, updatedPharmacy);
@@ -232,7 +229,7 @@ actor {
     enabled : Bool,
   ) : async () {
     switch (accountIdToAccountList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Account with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(account) { account.id != id });
         let updatedAccount = {
@@ -253,7 +250,7 @@ actor {
 
   public shared ({ caller }) func deleteAccount(id : Text, pharmacyId : Text) : async () {
     switch (accountIdToAccountList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Account with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(account) { account.id != id });
         accountIdToAccountList.add(pharmacyId, filteredList);
@@ -359,7 +356,7 @@ actor {
     rackNumber : Text,
   ) : async () {
     switch (medicineIdToMedicineList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(medicine) { medicine.id != id });
         let updatedMedicine = {
@@ -384,7 +381,7 @@ actor {
 
   public shared ({ caller }) func deleteMedicine(id : Text, pharmacyId : Text) : async () {
     switch (medicineIdToMedicineList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(medicine) { medicine.id != id });
         medicineIdToMedicineList.add(pharmacyId, filteredList);
@@ -394,12 +391,12 @@ actor {
 
   public shared ({ caller }) func updateMedicineQuantity(id : Text, pharmacyId : Text, newQuantity : Nat) : async () {
     switch (medicineIdToMedicineList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Medicine with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(medicine) { medicine.id != id });
         let existingMedicine = list.find(func(medicine) { medicine.id == id });
         switch (existingMedicine) {
-          case (null) { Runtime.trap("Medicine with id " # id # " not found") };
+          case (null) { () };
           case (?existing) {
             let updatedMedicine = { existing with quantity = newQuantity };
             filteredList.add(updatedMedicine);
@@ -434,7 +431,7 @@ actor {
 
   public shared ({ caller }) func deleteSale(id : Text, pharmacyId : Text) : async ?Sale {
     switch (saleIdToSaleList.get(pharmacyId)) {
-      case (null) { Runtime.trap("Sale with id " # id # " not found") };
+      case (null) { () };
       case (?list) {
         let filteredList = list.filter(func(sale) { sale.id != id });
         saleIdToSaleList.add(pharmacyId, filteredList);

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -40,7 +41,7 @@ export function PurchaseStockModal({
   onClose,
   medicine,
 }: PurchaseStockModalProps) {
-  const { addPurchaseRecord } = useData();
+  const { addPurchaseRecord, updateMedicine } = useData();
   const { currentUser } = useAuth();
 
   const [form, setForm] = useState<FormData>({
@@ -58,6 +59,10 @@ export function PurchaseStockModal({
   const [customTabletsPerBox, setCustomTabletsPerBox] = useState("");
   const [useCustomPerBox, setUseCustomPerBox] = useState(false);
 
+  // Sale price update state
+  const [updateSalePrice, setUpdateSalePrice] = useState(false);
+  const [newSalePrice, setNewSalePrice] = useState("");
+
   const openRef = open ? 1 : 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: openRef triggers reset
   useEffect(() => {
@@ -74,6 +79,8 @@ export function PurchaseStockModal({
       setTabletsPerBox("30");
       setCustomTabletsPerBox("");
       setUseCustomPerBox(false);
+      setUpdateSalePrice(false);
+      setNewSalePrice("");
     }
   }, [medicine, openRef]);
 
@@ -144,6 +151,21 @@ export function PurchaseStockModal({
         },
         totalQty,
       );
+
+      // Also update sale price per tablet if requested
+      if (updateSalePrice) {
+        const salePriceNum = Number(newSalePrice);
+        if (!Number.isNaN(salePriceNum) && salePriceNum > 0) {
+          await updateMedicine(medicine.id, {
+            price: salePriceNum,
+            retailPrice: salePriceNum,
+          });
+          toast.success(
+            `Sale price updated to Rs. ${salePriceNum.toFixed(2)}/tab`,
+          );
+        }
+      }
+
       toast.success(`${totalQty} units of ${medicine.name} added to stock`);
       onClose();
     } catch {
@@ -419,6 +441,49 @@ export function PurchaseStockModal({
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Update sale price toggle */}
+            <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-900">
+                    Update Sale Price/Tablet?
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Set the new per-tablet sale price for customers
+                  </p>
+                </div>
+                <Switch
+                  checked={updateSalePrice}
+                  onCheckedChange={setUpdateSalePrice}
+                />
+              </div>
+              {updateSalePrice && (
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="newSalePrice" className="text-amber-900">
+                    New Sale Price/Tablet (Rs.) *
+                  </Label>
+                  <Input
+                    id="newSalePrice"
+                    type="number"
+                    placeholder={
+                      entryMode === "boxes" && resolvedTabletsPerBox > 0
+                        ? `Suggested: ${netPrice.toFixed(2)} (net purchase/tab)`
+                        : "e.g. 12.50"
+                    }
+                    value={newSalePrice}
+                    onChange={(e) => setNewSalePrice(e.target.value)}
+                    min="0.01"
+                    step="0.01"
+                    className="bg-white border-amber-300 focus:border-amber-500"
+                  />
+                  <p className="text-xs text-amber-700">
+                    Current sale price: Rs. {(medicine?.price ?? 0).toFixed(2)}
+                    /tab
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Added by */}

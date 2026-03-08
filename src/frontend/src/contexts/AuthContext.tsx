@@ -10,6 +10,38 @@ async function getActor(): Promise<backendInterface> {
   }
   return _actor;
 }
+
+/** Retry a function up to `retries` times with backoff */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 4,
+  delayMs = 1000,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      _actor = null;
+      if (i < retries - 1) {
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/** Wrap a promise with a timeout */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), ms),
+    ),
+  ]);
+}
+
 import type { Account } from "../types";
 
 interface AuthContextType {
@@ -94,15 +126,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
   ): Promise<Account | null> => {
     try {
-      const actor = await getActor();
-      const result = await actor.verifyAccount(pharmacyId, username, password);
+      const result = await withTimeout(
+        withRetry(
+          async () => {
+            const actor = await getActor();
+            return actor.verifyAccount(pharmacyId, username, password);
+          },
+          4,
+          1200,
+        ),
+        25000,
+      );
       if (result) {
         return mapBackendAccount(result);
       }
       return null;
     } catch (err) {
       console.error("Login by credentials failed:", err);
-      return null;
+      throw err;
     }
   };
 

@@ -204,7 +204,8 @@ export function MedicineFormModal({
               <Info className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-blue-700 leading-snug">
                 <span className="font-semibold">Note:</span> Enter prices per
-                individual tablet / unit — not per box.
+                individual tablet/unit or per piece (syrup, drops, etc.) — not
+                per box.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Loader2,
   Lock,
+  RefreshCw,
   Shield,
   User,
 } from "lucide-react";
@@ -15,19 +16,89 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSuperAdmin } from "../contexts/SuperAdminContext";
 
+/** Sleep for ms milliseconds */
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
+
 export function SuperAdminLoginPage() {
-  const { superAdminLogin, isLoggedInAsSuperAdmin } = useSuperAdmin();
+  const { superAdminLogin, isLoggedInAsSuperAdmin, isLoading, initFailed } =
+    useSuperAdmin();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("Signing in...");
 
   // If already logged in, redirect
   if (isLoggedInAsSuperAdmin) {
     navigate({ to: "/superadmin/dashboard" });
     return null;
+  }
+
+  // Full-page loading while connecting to backend
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sidebar via-sidebar/90 to-background flex items-center justify-center p-4">
+        <div
+          className="text-center space-y-4"
+          data-ocid="superadmin.loading_state"
+        >
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-2 shadow-lg">
+            <Shield className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">Pharmacy World</h1>
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-sm">
+              Connecting to server, please wait...
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            First load may take up to 30 seconds while the server starts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Full-page error if init permanently failed
+  if (initFailed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sidebar via-sidebar/90 to-background flex items-center justify-center p-4">
+        <div
+          className="text-center space-y-4 max-w-sm"
+          data-ocid="superadmin.error_state"
+        >
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-destructive/10 mb-2">
+            <AlertCircle className="w-8 h-8 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">
+            Connection Failed
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Could not connect to server. Please check your internet connection
+            and try again.
+          </p>
+          <Button
+            onClick={() => window.location.reload()}
+            className="w-full gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Page
+          </Button>
+          <Link
+            to="/login"
+            className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Pharmacy Login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const handleLogin = async () => {
@@ -38,22 +109,51 @@ export function SuperAdminLoginPage() {
     }
 
     setLoading(true);
+    setLoadingMsg("Signing in...");
 
-    try {
-      const success = await superAdminLogin(username.trim(), password);
-      if (!success) {
-        setError("Invalid master admin credentials");
+    const MAX_RETRIES = 10;
+    let lastErr: unknown = null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const success = await superAdminLogin(username.trim(), password);
+        if (!success) {
+          setError(
+            "Invalid master admin credentials. Please check username and password.",
+          );
+          setLoading(false);
+          return;
+        }
+
+        toast.success("Welcome, Master Admin!");
+        await navigate({ to: "/superadmin/dashboard" });
         setLoading(false);
-        return;
+        return; // success
+      } catch (err) {
+        lastErr = err;
+        if (attempt < MAX_RETRIES - 1) {
+          if (attempt >= 1) {
+            setLoadingMsg(
+              `Server is starting up... (${attempt + 1}/${MAX_RETRIES})`,
+            );
+          }
+          const delay = Math.min(2000 * (attempt + 1), 8000);
+          await sleep(delay);
+        }
       }
-
-      toast.success("Welcome, Master Admin!");
-      await navigate({ to: "/superadmin/dashboard" });
-    } catch {
-      setError("Login failed. Please try again.");
-    } finally {
-      setLoading(false);
     }
+
+    // All retries exhausted
+    const finalMsg =
+      lastErr instanceof Error ? lastErr.message : String(lastErr);
+    if (finalMsg.includes("timed out") || finalMsg.includes("timeout")) {
+      setError(
+        "Server is taking too long to start. Please refresh the page (F5) and try again.",
+      );
+    } else {
+      setError("Connection error. Please refresh the page (F5) and try again.");
+    }
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -127,7 +227,7 @@ export function SuperAdminLoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {loadingMsg}
                 </>
               ) : (
                 "Sign In as Master Admin"

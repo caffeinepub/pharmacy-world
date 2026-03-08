@@ -22,8 +22,8 @@ async function getActor(): Promise<backendInterface> {
 /** Retry a function up to `retries` times with shorter backoff to avoid UI hangs */
 async function withRetry<T>(
   fn: () => Promise<T>,
-  retries = 3,
-  delayMs = 800,
+  retries = 5,
+  delayMs = 600,
 ): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
@@ -65,6 +65,7 @@ interface SuperAdminContextType {
   pharmacies: Pharmacy[];
   isSuperAdminSetup: boolean;
   isLoading: boolean;
+  initFailed: boolean;
   setupSuperAdmin: (username: string, password: string) => Promise<void>;
   addPharmacy: (input: AddPharmacyInput) => Promise<void>;
   deletePharmacy: (id: string) => Promise<void>;
@@ -133,6 +134,7 @@ export function SuperAdminProvider({
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [isSuperAdminSetup, setIsSuperAdminSetup] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [initFailed, setInitFailed] = useState(false);
   const [isLoggedInAsSuperAdmin, setIsLoggedInAsSuperAdmin] = useState<boolean>(
     () => localStorage.getItem("pw_superadmin_session") === "1",
   );
@@ -140,28 +142,48 @@ export function SuperAdminProvider({
   // Load initial data from backend
   useEffect(() => {
     async function init() {
-      try {
-        const [sa, phs] = await withTimeout(
-          withRetry(async () => {
-            const actor = await getActor();
-            return Promise.all([actor.getSuperAdmin(), actor.getPharmacies()]);
-          }),
-          10000,
-        );
-        if (sa) {
-          setSuperAdmin(sa);
-          setIsSuperAdminSetup(true);
-        } else {
-          // Backend pre-seeds masteradmin/master123 so this should always be set
-          setIsSuperAdminSetup(false);
+      // ICP canisters can take 30-60 seconds to cold start.
+      // We retry aggressively with increasing delays to cover the full warm-up window.
+      const MAX_ATTEMPTS = 12;
+      const TIMEOUT_PER_ATTEMPT = 30000; // 30s per attempt
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          const [sa, phs] = await withTimeout(
+            (async () => {
+              const actor = await getActor();
+              return Promise.all([
+                actor.getSuperAdmin(),
+                actor.getPharmacies(),
+              ]);
+            })(),
+            TIMEOUT_PER_ATTEMPT,
+          );
+          if (sa) {
+            setSuperAdmin(sa);
+            setIsSuperAdminSetup(true);
+          } else {
+            setIsSuperAdminSetup(false);
+          }
+          setPharmacies(phs.map(mapBackendPharmacy));
+          setIsLoading(false);
+          return; // success -- exit
+        } catch (err) {
+          _actor = null; // reset actor on failure
+          console.warn(
+            `Init attempt ${attempt + 1}/${MAX_ATTEMPTS} failed:`,
+            err,
+          );
+          if (attempt < MAX_ATTEMPTS - 1) {
+            // Progressive delay: 1s, 2s, 3s, 4s, 5s, 5s, 5s... (capped at 5s)
+            const delay = Math.min(1000 * (attempt + 1), 5000);
+            await new Promise((r) => setTimeout(r, delay));
+          }
         }
-        setPharmacies(phs.map(mapBackendPharmacy));
-      } catch (err) {
-        console.error("Failed to init SuperAdminContext:", err);
-        toast.error("Failed to connect to backend. Please refresh the page.");
-      } finally {
-        setIsLoading(false);
       }
+      // All retries exhausted
+      console.error("Failed to init SuperAdminContext after all retries");
+      setInitFailed(true);
+      setIsLoading(false);
     }
     init();
   }, []);
@@ -179,15 +201,29 @@ export function SuperAdminProvider({
   const setupSuperAdmin = useCallback(
     async (username: string, password: string) => {
       try {
-        const actor = await getActor();
-        const success = await actor.setupSuperAdmin(username, password);
+        const success = await withTimeout(
+          withRetry(
+            async () => {
+              const actor = await getActor();
+              return actor.setupSuperAdmin(username, password);
+            },
+            4,
+            1000,
+          ),
+          20000,
+        );
         if (!success) {
           // Already set up -- backend returned false
-          // Refresh to get current superAdmin state
-          const sa = await actor.getSuperAdmin();
-          if (sa) {
-            setSuperAdmin(sa);
-            setIsSuperAdminSetup(true);
+          // Refresh to get current superAdmin state and redirect to login
+          try {
+            const actor = await getActor();
+            const sa = await actor.getSuperAdmin();
+            if (sa) {
+              setSuperAdmin(sa);
+              setIsSuperAdminSetup(true);
+            }
+          } catch (_) {
+            // ignore secondary fetch error
           }
           throw new Error("Master admin already exists. Please login instead.");
         }
@@ -310,21 +346,29 @@ export function SuperAdminProvider({
 
   const superAdminLogin = useCallback(
     async (username: string, password: string): Promise<boolean> => {
-      try {
-        const actor = await getActor();
-        const success = await actor.verifySuperAdmin(username, password);
-        if (success) {
-          localStorage.setItem("pw_superadmin_session", "1");
-          setIsLoggedInAsSuperAdmin(true);
-          // Also fetch the SA object
+      const success = await withTimeout(
+        withRetry(
+          async () => {
+            const actor = await getActor();
+            return actor.verifySuperAdmin(username, password);
+          },
+          4,
+          1000,
+        ),
+        25000,
+      );
+      if (success) {
+        localStorage.setItem("pw_superadmin_session", "1");
+        setIsLoggedInAsSuperAdmin(true);
+        try {
+          const actor = await getActor();
           const sa = await actor.getSuperAdmin();
           if (sa) setSuperAdmin(sa);
+        } catch (_) {
+          // ignore secondary fetch error
         }
-        return success;
-      } catch (err) {
-        console.error("Super admin login failed:", err);
-        return false;
       }
+      return success;
     },
     [],
   );
@@ -391,6 +435,7 @@ export function SuperAdminProvider({
         pharmacies,
         isSuperAdminSetup,
         isLoading,
+        initFailed,
         setupSuperAdmin,
         addPharmacy,
         deletePharmacy,
