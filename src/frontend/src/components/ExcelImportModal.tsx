@@ -263,12 +263,12 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: "binary" });
+        const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(
           worksheet,
-          { defval: "" },
+          { defval: "", raw: false },
         );
 
         if (jsonData.length === 0) {
@@ -283,7 +283,7 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
         toast.error("Could not read the file. Please check the format.");
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   }, []);
 
   const handleFileChange = useCallback(

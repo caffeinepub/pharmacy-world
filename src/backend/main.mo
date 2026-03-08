@@ -5,9 +5,9 @@ import Float "mo:core/Float";
 import Order "mo:core/Order";
 import List "mo:core/List";
 import Iter "mo:core/Iter";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   public type SuperAdmin = {
     username : Text;

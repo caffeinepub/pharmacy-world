@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -59,8 +58,7 @@ export function PurchaseStockModal({
   const [customTabletsPerBox, setCustomTabletsPerBox] = useState("");
   const [useCustomPerBox, setUseCustomPerBox] = useState(false);
 
-  // Sale price update state
-  const [updateSalePrice, setUpdateSalePrice] = useState(false);
+  // Sale price (always shown, auto-calculated)
   const [newSalePrice, setNewSalePrice] = useState("");
 
   const openRef = open ? 1 : 0;
@@ -79,8 +77,8 @@ export function PurchaseStockModal({
       setTabletsPerBox("30");
       setCustomTabletsPerBox("");
       setUseCustomPerBox(false);
-      setUpdateSalePrice(false);
       setNewSalePrice("");
+      setSalePriceManuallyEdited(false);
     }
   }, [medicine, openRef]);
 
@@ -103,6 +101,18 @@ export function PurchaseStockModal({
   const discountAmount = pp * (disc / 100);
   const netPrice = pp - discountAmount;
   const totalCost = netPrice * totalQty;
+
+  // Auto-suggest sale price: when purchase price or discount changes, auto-fill sale price
+  // Only auto-fill if user hasn't manually edited it (track with a flag)
+  const [salePriceManuallyEdited, setSalePriceManuallyEdited] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-suggest logic
+  useEffect(() => {
+    if (!salePriceManuallyEdited && netPrice > 0) {
+      // Suggest a sale price = net purchase price per tablet (user can change)
+      setNewSalePrice(netPrice.toFixed(2));
+    }
+  }, [netPrice, salePriceManuallyEdited]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -152,18 +162,13 @@ export function PurchaseStockModal({
         totalQty,
       );
 
-      // Also update sale price per tablet if requested
-      if (updateSalePrice) {
-        const salePriceNum = Number(newSalePrice);
-        if (!Number.isNaN(salePriceNum) && salePriceNum > 0) {
-          await updateMedicine(medicine.id, {
-            price: salePriceNum,
-            retailPrice: salePriceNum,
-          });
-          toast.success(
-            `Sale price updated to Rs. ${salePriceNum.toFixed(2)}/tab`,
-          );
-        }
+      // Always update sale price per tablet if provided
+      const salePriceNum = Number(newSalePrice);
+      if (!Number.isNaN(salePriceNum) && salePriceNum > 0) {
+        await updateMedicine(medicine.id, {
+          price: salePriceNum,
+          retailPrice: salePriceNum,
+        });
       }
 
       toast.success(`${totalQty} units of ${medicine.name} added to stock`);
@@ -443,47 +448,49 @@ export function PurchaseStockModal({
               </div>
             </div>
 
-            {/* Update sale price toggle */}
-            <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-900">
-                    Update Sale Price/Tablet?
-                  </p>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    Set the new per-tablet sale price for customers
-                  </p>
-                </div>
-                <Switch
-                  checked={updateSalePrice}
-                  onCheckedChange={setUpdateSalePrice}
-                />
+            {/* Sale Price per Tablet - always visible, auto-calculated */}
+            <div className="space-y-1.5 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <Label
+                  htmlFor="newSalePrice"
+                  className="text-amber-900 font-semibold"
+                >
+                  Sale Price/Tablet (Rs.) *
+                </Label>
+                <span className="text-[11px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full font-medium">
+                  Auto-calculated
+                </span>
               </div>
-              {updateSalePrice && (
-                <div className="space-y-1.5 pt-1">
-                  <Label htmlFor="newSalePrice" className="text-amber-900">
-                    New Sale Price/Tablet (Rs.) *
-                  </Label>
-                  <Input
-                    id="newSalePrice"
-                    type="number"
-                    placeholder={
-                      entryMode === "boxes" && resolvedTabletsPerBox > 0
-                        ? `Suggested: ${netPrice.toFixed(2)} (net purchase/tab)`
-                        : "e.g. 12.50"
-                    }
-                    value={newSalePrice}
-                    onChange={(e) => setNewSalePrice(e.target.value)}
-                    min="0.01"
-                    step="0.01"
-                    className="bg-white border-amber-300 focus:border-amber-500"
-                  />
-                  <p className="text-xs text-amber-700">
-                    Current sale price: Rs. {(medicine?.price ?? 0).toFixed(2)}
-                    /tab
-                  </p>
-                </div>
-              )}
+              <Input
+                id="newSalePrice"
+                type="number"
+                placeholder="e.g. 12.50"
+                value={newSalePrice}
+                onChange={(e) => {
+                  setSalePriceManuallyEdited(true);
+                  setNewSalePrice(e.target.value);
+                }}
+                min="0.01"
+                step="0.01"
+                className="bg-white border-amber-300 focus:border-amber-500"
+              />
+              <div className="flex items-center justify-between text-xs text-amber-700 mt-0.5">
+                <span>
+                  Current: Rs. {(medicine?.price ?? 0).toFixed(2)}/tab
+                </span>
+                {netPrice > 0 && (
+                  <button
+                    type="button"
+                    className="underline text-amber-600 hover:text-amber-800"
+                    onClick={() => {
+                      setSalePriceManuallyEdited(false);
+                      setNewSalePrice(netPrice.toFixed(2));
+                    }}
+                  >
+                    Reset to purchase price
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Added by */}
