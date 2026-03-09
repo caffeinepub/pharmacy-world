@@ -5,6 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Keyboard,
   Loader2,
   Minus,
   Plus,
@@ -12,7 +15,7 @@ import {
   ShoppingCart,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { InvoiceModal } from "../components/InvoiceModal";
 import { useAuth } from "../contexts/AuthContext";
@@ -46,6 +49,75 @@ export function SalesPage() {
   const [discount, setDiscount] = useState("");
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Refs for keyboard shortcut targets
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const discountInputRef = useRef<HTMLInputElement>(null);
+  const saleLoadingRef = useRef(false);
+  const cartRef = useRef(cart);
+
+  // Keep cartRef in sync so keyboard handler can access latest cart
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
+
+  // Keep saleLoadingRef in sync
+  const [saleLoading, setSaleLoading] = useState(false);
+  useEffect(() => {
+    saleLoadingRef.current = saleLoading;
+  }, [saleLoading]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      // `/` → focus search (only when not typing)
+      if (e.key === "/" && !isTyping) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // Escape → clear search and blur
+      if (e.key === "Escape" && target === searchInputRef.current) {
+        e.preventDefault();
+        searchInputRef.current?.blur();
+        // setSearch via the input directly doesn't work here, handled via state below
+        return;
+      }
+
+      // Alt+D → focus discount input
+      if (e.key === "d" && e.altKey) {
+        e.preventDefault();
+        discountInputRef.current?.focus();
+        discountInputRef.current?.select();
+        return;
+      }
+
+      // Ctrl+Enter or F9 → complete sale
+      if ((e.key === "Enter" && e.ctrlKey) || e.key === "F9") {
+        e.preventDefault();
+        const currentCart = cartRef.current;
+        if (currentCart.length > 0 && !saleLoadingRef.current) {
+          // trigger complete sale via a custom event so we can call the handler
+          document
+            .getElementById("complete-sale-btn")
+            ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        }
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const filteredMedicines = useMemo(
     () =>
@@ -156,8 +228,6 @@ export function SalesPage() {
   );
   const cartTotal = cartSubtotal - discountAmt;
 
-  const [saleLoading, setSaleLoading] = useState(false);
-
   const completeSale = async () => {
     if (cart.length === 0) return;
     if (!currentUser) return;
@@ -206,12 +276,52 @@ export function SalesPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">New Sale</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Point of Sale — search and add medicines to cart
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">New Sale</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Point of Sale — search and add medicines to cart
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShortcutsOpen((o) => !o)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1 shrink-0"
+          data-ocid="sales.keyboard_help.toggle"
+        >
+          <Keyboard className="w-3.5 h-3.5" />
+          Keyboard Shortcuts
+          {shortcutsOpen ? (
+            <ChevronUp className="w-3 h-3" />
+          ) : (
+            <ChevronDown className="w-3 h-3" />
+          )}
+        </button>
       </div>
+
+      {/* Keyboard shortcuts panel */}
+      {shortcutsOpen && (
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <p className="text-xs font-semibold text-foreground mb-2">
+            Keyboard Shortcuts
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1.5">
+            {[
+              { key: "/", desc: "Search medicines" },
+              { key: "Escape", desc: "Clear search" },
+              { key: "Ctrl+Enter", desc: "Complete sale" },
+              { key: "Alt+D", desc: "Focus discount" },
+            ].map(({ key, desc }) => (
+              <div key={key} className="flex items-center gap-2">
+                <kbd className="inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-background text-xs font-mono text-foreground shadow-sm whitespace-nowrap">
+                  {key}
+                </kbd>
+                <span className="text-xs text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-[calc(100vh-12rem)]">
         {/* Medicine List */}
@@ -220,10 +330,18 @@ export function SalesPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search medicines..."
+                ref={searchInputRef}
+                placeholder="Search medicines... (press / to focus)"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearch("");
+                    searchInputRef.current?.blur();
+                  }
+                }}
                 className="pl-9"
+                data-ocid="sales.search_input"
               />
             </div>
           </div>
@@ -405,12 +523,14 @@ export function SalesPage() {
                 </Label>
                 <Input
                   id="discount"
+                  ref={discountInputRef}
                   type="number"
                   placeholder="0.00"
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value)}
                   className="h-8 text-sm"
                   min="0"
+                  data-ocid="sales.discount.input"
                 />
               </div>
 
@@ -429,9 +549,11 @@ export function SalesPage() {
               </div>
 
               <Button
+                id="complete-sale-btn"
                 className="w-full gap-2"
                 onClick={completeSale}
                 disabled={cart.length === 0 || saleLoading}
+                data-ocid="sales.complete_sale.button"
               >
                 {saleLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

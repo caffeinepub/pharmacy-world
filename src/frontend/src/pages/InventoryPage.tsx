@@ -38,6 +38,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Download,
+  FileDown,
   Loader2,
   MinusCircle,
   PackagePlus,
@@ -56,6 +58,10 @@ import { MedicineFormModal } from "../components/MedicineFormModal";
 import { PurchaseStockModal } from "../components/PurchaseStockModal";
 import { useData } from "../contexts/DataContext";
 import type { Medicine } from "../types";
+import {
+  exportInventoryToExcel,
+  exportInventoryToPDF,
+} from "../utils/exportUtils";
 
 interface RemoveEntry {
   removeQty: string;
@@ -72,6 +78,24 @@ export function InventoryPage() {
   const [purchaseMed, setPurchaseMed] = useState<Medicine | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  const handleExportExcel = () => {
+    try {
+      exportInventoryToExcel(medicines);
+      toast.success("Inventory exported to Excel");
+    } catch {
+      toast.error("Failed to export Excel");
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      exportInventoryToPDF(medicines);
+      toast.success("Inventory exported to PDF");
+    } catch {
+      toast.error("Failed to export PDF");
+    }
+  };
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -218,7 +242,29 @@ export function InventoryPage() {
             {medicines.reduce((s, m) => s + m.quantity, 0)} total units
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            className="gap-2"
+            data-ocid="inventory.export_excel.button"
+            disabled={medicines.length === 0}
+            title="Export inventory to Excel"
+          >
+            <Download className="w-4 h-4" />
+            Export Excel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportPDF}
+            className="gap-2"
+            data-ocid="inventory.export_pdf.button"
+            disabled={medicines.length === 0}
+            title="Export inventory to PDF"
+          >
+            <FileDown className="w-4 h-4" />
+            Export PDF
+          </Button>
           <Button
             variant="outline"
             onClick={() => setImportOpen(true)}

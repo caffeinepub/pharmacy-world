@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -209,6 +210,23 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
   const [purchaseRecords, setPurchaseRecords] = useState<PurchaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Stable refs to avoid stale closures in callbacks
+  const medicinesRef = useRef(medicines);
+  const salesRef = useRef(sales);
+  const accountsRef = useRef(accounts);
+
+  useEffect(() => {
+    medicinesRef.current = medicines;
+  }, [medicines]);
+
+  useEffect(() => {
+    salesRef.current = sales;
+  }, [sales]);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
   const loadData = useCallback(async (pid: string) => {
     if (!pid || pid === "__none__") return;
     setIsLoading(true);
@@ -280,7 +298,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         prev.map((m) => (m.id === id ? { ...m, ...med } : m)),
       );
       try {
-        const current = medicines.find((m) => m.id === id);
+        const current = medicinesRef.current.find((m) => m.id === id);
         if (!current) return;
         const merged = { ...current, ...med };
         const actor = await getActor();
@@ -308,7 +326,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, medicines],
+    [pharmacyId],
   );
 
   const deleteMedicine = useCallback(
@@ -362,7 +380,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         prev.map((a) => (a.id === id ? { ...a, ...acc } : a)),
       );
       try {
-        const current = accounts.find((a) => a.id === id);
+        const current = accountsRef.current.find((a) => a.id === id);
         if (!current) return;
         const merged = { ...current, ...acc };
         const actor = await getActor();
@@ -382,7 +400,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, accounts, loadData],
+    [pharmacyId, loadData],
   );
 
   const deleteAccount = useCallback(
@@ -406,7 +424,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
       const today = new Date();
       const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
       // Count today's sales for invoice numbering
-      const todaySales = sales.filter((s) =>
+      const todaySales = salesRef.current.filter((s) =>
         s.date.startsWith(today.toISOString().slice(0, 10)),
       );
       const count = todaySales.length + 1;
@@ -451,14 +469,14 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, sales],
+    [pharmacyId],
   );
 
   const deleteSale = useCallback(
     async (id: string) => {
       try {
         // Find sale in local state BEFORE deleting so we can restore stock
-        const saleToDelete = sales.find((s) => s.id === id);
+        const saleToDelete = salesRef.current.find((s) => s.id === id);
 
         const actor = await getActor();
         await actor.deleteSale(id, pharmacyId);
@@ -467,7 +485,9 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         if (saleToDelete && saleToDelete.items.length > 0) {
           await Promise.all(
             saleToDelete.items.map(async (item) => {
-              const med = medicines.find((m) => m.id === item.medicineId);
+              const med = medicinesRef.current.find(
+                (m) => m.id === item.medicineId,
+              );
               if (med) {
                 const newQty = med.quantity + item.quantity;
                 await actor.updateMedicineQuantity(
@@ -503,11 +523,13 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, medicines, sales],
+    [pharmacyId],
   );
 
   const deductStock = useCallback(
     async (items: { medicineId: string; quantity: number }[]) => {
+      // Snapshot current medicines before optimistic update
+      const snapshot = medicinesRef.current;
       // Optimistic update locally
       setMedicines((prev) =>
         prev.map((med) => {
@@ -525,7 +547,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         const actor = await getActor();
         await Promise.all(
           items.map(async (item) => {
-            const med = medicines.find((m) => m.id === item.medicineId);
+            const med = snapshot.find((m) => m.id === item.medicineId);
             if (med) {
               const newQty = Math.max(0, med.quantity - item.quantity);
               await actor.updateMedicineQuantity(
@@ -544,7 +566,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, medicines, loadData],
+    [pharmacyId, loadData],
   );
 
   const addPurchaseRecord = useCallback(
@@ -570,7 +592,9 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
 
       try {
         // Find current medicine quantity
-        const med = medicines.find((m) => m.id === record.medicineId);
+        const med = medicinesRef.current.find(
+          (m) => m.id === record.medicineId,
+        );
         const currentQty = med?.quantity ?? 0;
         const newQty = currentQty + addQuantity;
 
@@ -596,7 +620,7 @@ export function DataProvider({ children, pharmacyId }: DataProviderProps) {
         throw err;
       }
     },
-    [pharmacyId, medicines],
+    [pharmacyId],
   );
 
   return (

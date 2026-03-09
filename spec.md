@@ -1,52 +1,49 @@
 # Pharmacy World
 
 ## Current State
+Multi-pharmacy SaaS POS application with:
+- Super Admin dashboard to manage pharmacies (activate/deactivate with expiry)
+- Per-pharmacy: inventory management, new sale (POS), sales history, purchase records, accounts management
+- Excel import for medicines
+- Invoice print with patient info dialog
+- Bulk stock removal
+- Rack number tracking per medicine
+- Per-tablet price system with box-to-tablet calculation in purchase stock modal
+- Rs. currency throughout
 
-A full multi-pharmacy management system where:
-- Master Admin (SuperAdmin) manages multiple pharmacies
-- Each pharmacy has its own admin/cashier accounts, medicines inventory, sales, and purchase records
-- All data currently stored in browser `localStorage` -- works only on the browser/device where setup was done
-- Login fails on any other browser/device because localStorage is not shared
+Known issues:
+- Data persistence: every new deployment resets data (backend stable storage is fine; issue was believed to be frontend re-initialization bug)
+- No inventory export (Excel/PDF)
+- No keyboard shortcuts on New Sale page
 
 ## Requested Changes (Diff)
 
 ### Add
-- ICP canister-based persistent storage for all data (SuperAdmin credentials, pharmacies list, pharmacy accounts, medicines, sales, purchases)
-- Data accessible from any browser/device after deployment
-- Default master admin credentials (username: `masteradmin`, password: `master123`) pre-seeded so first login always works from any browser
-- Change password functionality for master admin from Dashboard
+- **Inventory Export**: "Export Excel" and "Export PDF" buttons on the Inventory page allowing download of current inventory as an Excel (.xlsx) file and a PDF file
+- **Keyboard Shortcuts on New Sale page**:
+  - `/` or `Ctrl+K` focuses the medicine search input
+  - `Enter` or `Space` on a highlighted medicine card adds it to cart
+  - `Tab` moves focus between medicine cards in the list
+  - `Escape` clears the search input
+  - In cart: `+` and `-` keys adjust quantity of last-added/selected cart item
+  - Discount input: `Alt+D` or `Ctrl+D` focuses discount field
+  - `Ctrl+Enter` or `F10` completes the sale (only if cart is non-empty)
+  - Keyboard shortcut legend displayed as a small collapsible help panel on the New Sale page
 
 ### Modify
-- SuperAdminContext: replace localStorage with backend canister calls for superadmin setup/login and pharmacy CRUD
-- DataContext: replace localStorage with backend canister calls for medicines, accounts, sales, purchases per pharmacy
-- AuthContext: keep session in localStorage (browser session is fine) but validate credentials against backend
-- SuperAdminSetupPage: only show if no superadmin exists in backend; if default exists, skip setup
-- SuperAdminDashboardPage: add "Change Master Password" button
+- **Data persistence robustness**: Add a session-persistence check on app init -- on first load, verify the backend superAdmin is set; if it is, trust existing localStorage session tokens. Do NOT clear or reset localStorage on app startup. Ensure the `DataProvider` does not wipe local state on re-render by stabilizing the `pharmacyId` dependency.
+- **Inventory page**: Add export buttons next to "Import Excel" and "Add Medicine" buttons
 
 ### Remove
-- Dependency on localStorage as primary data store (session-only use is fine)
+- Nothing to remove
 
 ## Implementation Plan
-
-1. Generate Motoko backend with:
-   - SuperAdmin storage: username + password hash, CRUD
-   - Pharmacy storage: full Pharmacy records, activate/deactivate/delete
-   - Per-pharmacy Accounts: CRUD with pharmacyId scoping
-   - Per-pharmacy Medicines: CRUD with pharmacyId scoping
-   - Per-pharmacy Sales: create, list, delete (with stock restore)
-   - Per-pharmacy Purchases: create, list
-   - Pre-seeded default master admin: username=`masteradmin` password=`master123`
-
-2. Update SuperAdminContext to call backend for:
-   - superAdminLogin (validate against backend)
-   - setupSuperAdmin / changePassword
-   - addPharmacy, deletePharmacy, activatePharmacy, deactivatePharmacy
-   - Load pharmacies list from backend
-
-3. Update DataContext to call backend for all pharmacy-scoped data operations
-
-4. Update AuthContext to validate login against backend accounts
-
-5. Add "Change Master Password" dialog in SuperAdminDashboardPage
-
-6. Keep localStorage only for active session tokens (currentUser, superadmin_session, selected_pharmacy)
+1. Add `ExcelExportButton` utility using `xlsx` (already likely installed for import) to generate .xlsx from medicines array
+2. Add `PDFExportButton` utility using `jspdf` + `jspdf-autotable` to generate inventory PDF
+3. Add both export buttons to `InventoryPage.tsx` header area
+4. Add keyboard shortcut logic to `SalesPage.tsx`:
+   - useRef for search input focus
+   - keydown event listeners (window-level) with proper cleanup
+   - Visual shortcut hints in a small collapsible info box
+5. Stabilize DataContext to prevent unnecessary data resets -- ensure pharmacyId changes only trigger reload when value actually changes (not on re-render)
+6. Validate and deploy
