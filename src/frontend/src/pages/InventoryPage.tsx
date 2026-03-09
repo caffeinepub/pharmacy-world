@@ -104,6 +104,8 @@ export function InventoryPage() {
     Record<string, RemoveEntry>
   >({});
   const [isRemoving, setIsRemoving] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const categories = Array.from(
     new Set(medicines.map((m) => m.category)),
@@ -195,6 +197,21 @@ export function InventoryPage() {
       ...prev,
       [id]: { ...prev[id], ...patch },
     }));
+  };
+
+  // ── Bulk Delete (permanently remove medicines) ─────────────────────────
+  const handleBulkDeleteConfirm = async () => {
+    setIsDeletingAll(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => deleteMedicine(id)));
+      toast.success(`${selectedIds.size} medicine(s) permanently deleted.`);
+      setBulkDeleteOpen(false);
+      clearSelection();
+    } catch {
+      toast.error("Failed to delete medicines. Please try again.");
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   const handleBulkRemoveConfirm = async () => {
@@ -338,6 +355,16 @@ export function InventoryPage() {
             >
               <MinusCircle className="w-3.5 h-3.5" />
               Remove Stock
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="gap-2 h-8 bg-red-700 hover:bg-red-800"
+              data-ocid="inventory.bulk_delete.button"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete All Selected
             </Button>
             <Button
               size="sm"
@@ -678,6 +705,56 @@ export function InventoryPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
       />
+
+      {/* ── Bulk Delete All Selected Dialog ─────────────────────────────── */}
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(o) => !o && setBulkDeleteOpen(false)}
+      >
+        <AlertDialogContent data-ocid="inventory.bulk_delete.dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Delete {selectedIds.size} Medicine
+              {selectedIds.size > 1 ? "s" : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Yeh action{" "}
+              <strong>
+                {selectedIds.size} medicine{selectedIds.size > 1 ? "s" : ""}
+              </strong>{" "}
+              ko permanently inventory se hata dega. Ye undo nahi ho sakta.
+              {selectedIds.size === medicines.length && (
+                <span className="block mt-2 font-semibold text-destructive">
+                  Aap poori inventory delete kar rahe hain -- sab kuch blank ho
+                  jayega.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isDeletingAll}
+              data-ocid="inventory.bulk_delete.cancel_button"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDeleteConfirm}
+              disabled={isDeletingAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+              data-ocid="inventory.bulk_delete.confirm_button"
+            >
+              {isDeletingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {isDeletingAll ? "Deleting..." : "Yes, Delete All"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={!!deleteId}
