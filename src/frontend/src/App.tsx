@@ -26,40 +26,20 @@ import { SuperAdminDashboardPage } from "./pages/SuperAdminDashboardPage";
 import { SuperAdminLoginPage } from "./pages/SuperAdminLoginPage";
 import { SuperAdminSetupPage } from "./pages/SuperAdminSetupPage";
 
-// ---- Smart Root Redirect ----
+// ---- Minimal loading spinner ----
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
+// ---- Smart Root Redirect ----
 function RootRedirect() {
   const { isSuperAdminSetup, pharmacies, isLoading } = useSuperAdmin();
-  const [showSlowWarning, setShowSlowWarning] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading) return;
-    const t = setTimeout(() => setShowSlowWarning(true), 8000);
-    return () => clearTimeout(t);
-  }, [isLoading]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-          {showSlowWarning && (
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Taking longer than usual… Please wait or{" "}
-              <button
-                type="button"
-                className="underline text-primary hover:opacity-80"
-                onClick={() => window.location.reload()}
-              >
-                refresh the page
-              </button>
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   if (!isSuperAdminSetup) {
     return <Navigate to="/superadmin/setup" />;
@@ -77,19 +57,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { pharmacies } = useSuperAdmin();
   const selectedPharmacyId = localStorage.getItem("pw_selected_pharmacy") ?? "";
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-  if (!currentUser) {
-    return <Navigate to="/login" />;
-  }
+  if (isLoading) return <LoadingSpinner />;
+  if (!currentUser) return <Navigate to="/login" />;
   if (
     !selectedPharmacyId ||
     !pharmacies.find((p) => p.id === selectedPharmacyId)
@@ -110,25 +79,19 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 function RequireGuest({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading } = useAuth();
   if (isLoading) return null;
-  if (currentUser) {
-    return <Navigate to="/dashboard" />;
-  }
+  if (currentUser) return <Navigate to="/dashboard" />;
   return <>{children}</>;
 }
 
 function RequireSuperAdminGuest({ children }: { children: React.ReactNode }) {
   const { isLoggedInAsSuperAdmin } = useSuperAdmin();
-  if (isLoggedInAsSuperAdmin) {
-    return <Navigate to="/superadmin/dashboard" />;
-  }
+  if (isLoggedInAsSuperAdmin) return <Navigate to="/superadmin/dashboard" />;
   return <>{children}</>;
 }
 
 // ---- Routes ----
 
-const rootRoute = createRootRoute({
-  component: Outlet,
-});
+const rootRoute = createRootRoute({ component: Outlet });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -256,11 +219,6 @@ declare module "@tanstack/react-router" {
   }
 }
 
-// ---- DataProvider with dynamic pharmacyId ----
-// Reads pharmacyId from localStorage on every render cycle via a state that
-// gets updated when the "pw_pharmacy_changed" custom event fires (dispatched
-// after a successful login/logout).
-
 function DataProviderWrapper({ children }: { children: React.ReactNode }) {
   const [pharmacyId, setPharmacyId] = useState<string>(
     () => localStorage.getItem("pw_selected_pharmacy") ?? "__none__",
@@ -276,8 +234,6 @@ function DataProviderWrapper({ children }: { children: React.ReactNode }) {
 
   return <DataProvider pharmacyId={pharmacyId}>{children}</DataProvider>;
 }
-
-// ---- App Root ----
 
 export default function App() {
   return (

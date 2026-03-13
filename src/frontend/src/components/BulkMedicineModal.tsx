@@ -27,15 +27,16 @@ interface BulkRow {
   category: string;
   manufacturer: string;
   productType: string;
-  purchasePrice: string; // purchase price per tablet/unit
+  purchasePrice: string;
   salePrice: string;
-  boxQty: string; // number of full boxes
-  boxSize: string; // tablets per box
-  quantity: string; // direct quantity (used when box mode not active)
+  boxQty: string;
+  boxSize: string;
+  quantity: string;
   expiryDate: string;
   lowStock: string;
   rackLetter: string;
   rackNum: string;
+  existingId?: string; // set when row was filled via autocomplete
 }
 
 type RowErrors = Partial<Record<keyof BulkRow, boolean>>;
@@ -61,7 +62,6 @@ const RACK_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const RACK_NUMS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const PRODUCT_TYPES = ["Tablet", "Syrup/Liquid", "Cream", "Injection"];
 
-// Column keys that use <Input> and participate in keyboard navigation
 const NAV_COLS: (keyof BulkRow)[] = [
   "name",
   "category",
@@ -88,7 +88,7 @@ function getTotalQty(row: BulkRow): number {
 }
 
 export function BulkMedicineModal({ open, onClose }: Props) {
-  const { addMedicine, medicines } = useData();
+  const { addMedicine, updateMedicine, medicines } = useData();
   const [rows, setRows] = useState<BulkRow[]>(() =>
     Array.from({ length: 5 }, emptyRow),
   );
@@ -97,11 +97,9 @@ export function BulkMedicineModal({ open, onClose }: Props) {
   );
   const [saving, setSaving] = useState(false);
 
-  // Autocomplete state: which row is showing suggestions
   const [acRowIdx, setAcRowIdx] = useState<number | null>(null);
   const [acQuery, setAcQuery] = useState("");
 
-  // Keyboard nav refs: inputRefs[rowIdx][colIdx] = ref
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
   const ensureRef = (rowIdx: number, colIdx: number) => {
@@ -133,14 +131,12 @@ export function BulkMedicineModal({ open, onClose }: Props) {
           e.preventDefault();
           focusCell(rowIdx, nextCol);
         } else {
-          // Last column — go to next row first col
           e.preventDefault();
           const nextRow = rowIdx + 1;
           setRows((prev) => {
             if (nextRow >= prev.length) {
               const updated = [...prev, emptyRow()];
               setErrors((pe) => [...pe, {}]);
-              // Focus after state update
               setTimeout(() => focusCell(nextRow, 0), 50);
               return updated;
             }
@@ -157,7 +153,11 @@ export function BulkMedicineModal({ open, onClose }: Props) {
     (idx: number, field: keyof BulkRow, value: string) => {
       setRows((prev) => {
         const next = [...prev];
-        next[idx] = { ...next[idx], [field]: value };
+        if (field === "name" && next[idx].existingId) {
+          next[idx] = { ...next[idx], [field]: value, existingId: undefined };
+        } else {
+          next[idx] = { ...next[idx], [field]: value };
+        }
         return next;
       });
       setErrors((prev) => {
@@ -189,7 +189,6 @@ export function BulkMedicineModal({ open, onClose }: Props) {
     onClose();
   };
 
-  // Autocomplete suggestions
   const acSuggestions = useMemo<Medicine[]>(() => {
     if (!acQuery.trim() || acQuery.length < 2) return [];
     const q = acQuery.toLowerCase();
@@ -216,12 +215,12 @@ export function BulkMedicineModal({ open, onClose }: Props) {
         lowStock: String(med.lowStockThreshold ?? 10),
         rackLetter,
         rackNum,
+        existingId: med.id,
       };
       return next;
     });
     setAcRowIdx(null);
     setAcQuery("");
-    // Move focus to quantity field
     setTimeout(() => focusCell(idx, NAV_COLS.indexOf("quantity")), 50);
   };
 
@@ -252,7 +251,9 @@ export function BulkMedicineModal({ open, onClose }: Props) {
 
     setSaving(true);
     try {
-      let count = 0;
+      let addedCount = 0;
+      let updatedCount = 0;
+
       for (const { row } of activeRows) {
         const rackNumber =
           row.rackLetter && row.rackNum
@@ -260,25 +261,62 @@ export function BulkMedicineModal({ open, onClose }: Props) {
             : undefined;
         const salePrice = Number(row.salePrice) || 0;
         const qty = getTotalQty(row);
-        await addMedicine({
-          name: row.name.trim(),
-          category: row.category.trim(),
-          manufacturer: row.manufacturer.trim(),
-          price: salePrice,
-          retailPrice: salePrice,
-          purchasePrice: row.purchasePrice
-            ? Number(row.purchasePrice)
-            : undefined,
-          quantity: qty,
-          expiryDate: row.expiryDate || "",
-          lowStockThreshold: row.lowStock ? Number(row.lowStock) : 10,
-          rackNumber,
-        });
-        count++;
+
+        // Resolve existing medicine: by existingId (autocomplete) OR by exact name match (manual typing)
+        const existingMed =
+          (row.existingId
+            ? medicines.find((m) => m.id === row.existingId)
+            : null) ??
+          medicines.find(
+            (m) =>
+              m.name.trim().toLowerCase() === row.name.trim().toLowerCase(),
+          );
+
+        if (existingMed) {
+          // Update existing -- add new quantity on top of current stock
+          await updateMedicine(existingMed.id, {
+            price: salePrice,
+            retailPrice: salePrice,
+            purchasePrice: row.purchasePrice
+              ? Number(row.purchasePrice)
+              : existingMed.purchasePrice,
+            quantity: existingMed.quantity + qty,
+            expiryDate: row.expiryDate || existingMed.expiryDate || "",
+            lowStockThreshold: row.lowStock
+              ? Number(row.lowStock)
+              : existingMed.lowStockThreshold,
+            rackNumber: rackNumber ?? existingMed.rackNumber,
+          });
+          updatedCount++;
+        } else {
+          await addMedicine({
+            name: row.name.trim(),
+            category: row.category.trim(),
+            manufacturer: row.manufacturer.trim(),
+            price: salePrice,
+            retailPrice: salePrice,
+            purchasePrice: row.purchasePrice
+              ? Number(row.purchasePrice)
+              : undefined,
+            quantity: qty,
+            expiryDate: row.expiryDate || "",
+            lowStockThreshold: row.lowStock ? Number(row.lowStock) : 10,
+            rackNumber,
+          });
+          addedCount++;
+        }
       }
-      toast.success(
-        `${count} medicine${count !== 1 ? "s" : ""} added successfully`,
-      );
+
+      const parts: string[] = [];
+      if (addedCount > 0)
+        parts.push(
+          `${addedCount} medicine${addedCount !== 1 ? "s" : ""} added`,
+        );
+      if (updatedCount > 0)
+        parts.push(
+          `${updatedCount} medicine${updatedCount !== 1 ? "s" : ""} updated`,
+        );
+      toast.success(`${parts.join(", ")} successfully`);
       handleClose();
     } catch {
       toast.error("Failed to save medicines. Please try again.");
@@ -287,7 +325,6 @@ export function BulkMedicineModal({ open, onClose }: Props) {
     }
   };
 
-  // Summary of active rows
   const activeRows = rows.filter((r) => r.name.trim() !== "");
   const summaryTotal = activeRows.reduce((sum, r) => {
     const qty = getTotalQty(r);
@@ -314,8 +351,9 @@ export function BulkMedicineModal({ open, onClose }: Props) {
             Bulk Add Medicines
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Fill in multiple medicines at once. Type a name to autocomplete from
-            existing inventory. Tab or Enter navigates between cells.
+            Fill in multiple medicines at once. Existing medicines (same name)
+            will have their stock updated — no duplicates. Tab or Enter
+            navigates between cells.
           </p>
         </DialogHeader>
 
@@ -369,10 +407,24 @@ export function BulkMedicineModal({ open, onClose }: Props) {
                     Number(row.boxQty) > 0 && Number(row.boxSize) > 0
                       ? Number(row.boxQty) * Number(row.boxSize)
                       : null;
+
+                  // Real-time check: does this row match an existing medicine?
+                  const matchedMed = row.existingId
+                    ? medicines.find((m) => m.id === row.existingId)
+                    : row.name.trim().length > 1
+                      ? medicines.find(
+                          (m) =>
+                            m.name.trim().toLowerCase() ===
+                            row.name.trim().toLowerCase(),
+                        )
+                      : undefined;
+
                   return (
                     <tr
                       key={row._id}
-                      className="border-b border-border/40 hover:bg-muted/30"
+                      className={`border-b border-border/40 hover:bg-muted/30 ${
+                        matchedMed ? "bg-amber-50/40" : ""
+                      }`}
                       data-ocid={`bulk_add.row.${idx + 1}`}
                     >
                       {/* Name with autocomplete */}
@@ -390,18 +442,23 @@ export function BulkMedicineModal({ open, onClose }: Props) {
                             setAcQuery(row.name);
                           }}
                           onBlur={() => {
-                            // Delay to allow click on suggestion
                             setTimeout(() => setAcRowIdx(null), 150);
                           }}
                           onKeyDown={(e) => handleKeyNav(e, idx, 0)}
                           placeholder="Medicine name"
-                          className={`h-8 text-sm ${
+                          className={`h-8 text-sm pr-14 ${
                             errors[idx]?.name ? "border-destructive" : ""
+                          } ${
+                            matchedMed ? "border-amber-400 bg-amber-50" : ""
                           }`}
                           data-ocid={`bulk_add.name.input.${idx + 1}`}
                           autoComplete="off"
                         />
-                        {/* Autocomplete dropdown */}
+                        {matchedMed && (
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded pointer-events-none">
+                            +stock
+                          </span>
+                        )}
                         {acRowIdx === idx && acSuggestions.length > 0 && (
                           <div className="absolute top-full left-1 z-50 mt-0.5 w-72 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
                             {acSuggestions.map((med) => (
@@ -522,7 +579,7 @@ export function BulkMedicineModal({ open, onClose }: Props) {
                           data-ocid={`bulk_add.box_qty.input.${idx + 1}`}
                         />
                       </td>
-                      {/* Box Size (tabs/box) */}
+                      {/* Box Size */}
                       <td className="px-1 py-1 bg-blue-50/30">
                         <Input
                           ref={ensureRef(idx, 6)}
@@ -658,7 +715,6 @@ export function BulkMedicineModal({ open, onClose }: Props) {
             Add Row
           </Button>
 
-          {/* Live purchase summary */}
           {activeRows.length > 0 && (
             <div className="flex items-center gap-4 text-sm bg-primary/5 border border-primary/20 rounded-lg px-4 py-2">
               <div className="text-muted-foreground text-xs">

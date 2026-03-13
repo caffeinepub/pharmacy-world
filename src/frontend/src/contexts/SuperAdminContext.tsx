@@ -11,6 +11,26 @@ import {
 import { toast } from "sonner";
 import type { Pharmacy } from "../types";
 
+// ---- Local storage cache keys ----
+const CACHE_SETUP_KEY = "pw_sa_setup";
+const CACHE_PHARMACIES_KEY = "pw_pharmacies_cache";
+
+function loadCachedSetup(): boolean {
+  return localStorage.getItem(CACHE_SETUP_KEY) === "1";
+}
+
+function loadCachedPharmacies(): Pharmacy[] {
+  try {
+    const raw = localStorage.getItem(CACHE_PHARMACIES_KEY);
+    if (raw) return JSON.parse(raw) as Pharmacy[];
+  } catch (_) {}
+  return [];
+}
+
+function saveCachedPharmacies(pharmacies: Pharmacy[]) {
+  localStorage.setItem(CACHE_PHARMACIES_KEY, JSON.stringify(pharmacies));
+}
+
 let _actor: backendInterface | null = null;
 async function getActor(): Promise<backendInterface> {
   if (!_actor) {
@@ -19,7 +39,6 @@ async function getActor(): Promise<backendInterface> {
   return _actor;
 }
 
-/** Retry a function up to `retries` times with shorter backoff to avoid UI hangs */
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 5,
@@ -31,7 +50,6 @@ async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastErr = err;
-      // Reset actor so a fresh connection is attempted next time
       _actor = null;
       if (i < retries - 1) {
         await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
@@ -41,7 +59,6 @@ async function withRetry<T>(
   throw lastErr;
 }
 
-/** Wrap a promise with a timeout */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
@@ -91,7 +108,6 @@ function generateId() {
   return `ph-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/** Returns true if pharmacy is currently active (not expired and status=active) */
 export function isPharmacyActive(pharmacy: Pharmacy): boolean {
   if (pharmacy.status === "inactive") return false;
   if (pharmacy.expiresAt) {
@@ -101,7 +117,6 @@ export function isPharmacyActive(pharmacy: Pharmacy): boolean {
   return true;
 }
 
-/** Convert backend Pharmacy to frontend Pharmacy type */
 function mapBackendPharmacy(p: {
   id: string;
   name: string;
@@ -127,61 +142,67 @@ function mapBackendPharmacy(p: {
 export function SuperAdminProvider({
   children,
 }: { children: React.ReactNode }) {
+  // Initialise from cache immediately so UI renders without delay
+  const cachedSetup = loadCachedSetup();
+  const cachedPharmacies = loadCachedPharmacies();
+
   const [superAdmin, setSuperAdmin] = useState<{
     username: string;
     password: string;
   } | null>(null);
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
-  const [isSuperAdminSetup, setIsSuperAdminSetup] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>(cachedPharmacies);
+  const [isSuperAdminSetup, setIsSuperAdminSetup] =
+    useState<boolean>(cachedSetup);
+  // If we have cached data, start as NOT loading so app opens instantly
+  const [isLoading, setIsLoading] = useState<boolean>(
+    !cachedSetup && cachedPharmacies.length === 0,
+  );
   const [initFailed, setInitFailed] = useState(false);
   const [isLoggedInAsSuperAdmin, setIsLoggedInAsSuperAdmin] = useState<boolean>(
     () => localStorage.getItem("pw_superadmin_session") === "1",
   );
 
-  // Load initial data from backend
+  // Sync pharmacies to cache whenever they change
+  useEffect(() => {
+    if (pharmacies.length > 0) {
+      saveCachedPharmacies(pharmacies);
+    }
+  }, [pharmacies]);
+
+  // Load / refresh data from backend in background
   useEffect(() => {
     async function init() {
-      // ICP canisters can take 30-60 seconds to cold start.
-      // We retry aggressively with increasing delays to cover the full warm-up window.
-      const MAX_ATTEMPTS = 12;
-      const TIMEOUT_PER_ATTEMPT = 30000; // 30s per attempt
+      const MAX_ATTEMPTS = 8;
+      const TIMEOUT_PER_ATTEMPT = 20000;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
+          const actor = await getActor();
           const [sa, phs] = await withTimeout(
-            (async () => {
-              const actor = await getActor();
-              return Promise.all([
-                actor.getSuperAdmin(),
-                actor.getPharmacies(),
-              ]);
-            })(),
+            Promise.all([actor.getSuperAdmin(), actor.getPharmacies()]),
             TIMEOUT_PER_ATTEMPT,
           );
+          const mappedPhs = phs.map(mapBackendPharmacy);
           if (sa) {
             setSuperAdmin(sa);
             setIsSuperAdminSetup(true);
+            localStorage.setItem(CACHE_SETUP_KEY, "1");
           } else {
             setIsSuperAdminSetup(false);
+            localStorage.removeItem(CACHE_SETUP_KEY);
           }
-          setPharmacies(phs.map(mapBackendPharmacy));
+          setPharmacies(mappedPhs);
+          saveCachedPharmacies(mappedPhs);
           setIsLoading(false);
-          return; // success -- exit
-        } catch (err) {
-          _actor = null; // reset actor on failure
-          console.warn(
-            `Init attempt ${attempt + 1}/${MAX_ATTEMPTS} failed:`,
-            err,
-          );
+          return;
+        } catch (_err) {
+          _actor = null;
           if (attempt < MAX_ATTEMPTS - 1) {
-            // Progressive delay: 1s, 2s, 3s, 4s, 5s, 5s, 5s... (capped at 5s)
-            const delay = Math.min(1000 * (attempt + 1), 5000);
+            const delay = Math.min(1000 * (attempt + 1), 4000);
             await new Promise((r) => setTimeout(r, delay));
           }
         }
       }
-      // All retries exhausted
-      console.error("Failed to init SuperAdminContext after all retries");
+      // All retries exhausted -- keep showing cached data, mark failed silently
       setInitFailed(true);
       setIsLoading(false);
     }
@@ -192,7 +213,9 @@ export function SuperAdminProvider({
     try {
       const actor = await getActor();
       const phs = await actor.getPharmacies();
-      setPharmacies(phs.map(mapBackendPharmacy));
+      const mapped = phs.map(mapBackendPharmacy);
+      setPharmacies(mapped);
+      saveCachedPharmacies(mapped);
     } catch (err) {
       console.error("Failed to refresh pharmacies:", err);
     }
@@ -213,22 +236,20 @@ export function SuperAdminProvider({
           20000,
         );
         if (!success) {
-          // Already set up -- backend returned false
-          // Refresh to get current superAdmin state and redirect to login
           try {
             const actor = await getActor();
             const sa = await actor.getSuperAdmin();
             if (sa) {
               setSuperAdmin(sa);
               setIsSuperAdminSetup(true);
+              localStorage.setItem(CACHE_SETUP_KEY, "1");
             }
-          } catch (_) {
-            // ignore secondary fetch error
-          }
+          } catch (_) {}
           throw new Error("Master admin already exists. Please login instead.");
         }
         setSuperAdmin({ username, password });
         setIsSuperAdminSetup(true);
+        localStorage.setItem(CACHE_SETUP_KEY, "1");
       } catch (err) {
         console.error("Failed to setup super admin:", err);
         throw err;
@@ -240,10 +261,8 @@ export function SuperAdminProvider({
   const addPharmacy = useCallback(async (input: AddPharmacyInput) => {
     const id = generateId();
     const createdAt = new Date().toISOString();
-
     try {
       const actor = await getActor();
-      // Add pharmacy to backend
       await actor.addPharmacy(
         id,
         input.name,
@@ -251,8 +270,6 @@ export function SuperAdminProvider({
         input.phone,
         createdAt,
       );
-
-      // Add admin account for the pharmacy
       const adminAccount = {
         id: `${id}-admin-001`,
         username: input.adminUsername,
@@ -264,10 +281,10 @@ export function SuperAdminProvider({
         pharmacyId: id,
       };
       await actor.addAccount(adminAccount);
-
-      // Refresh pharmacies list
       const phs = await actor.getPharmacies();
-      setPharmacies(phs.map(mapBackendPharmacy));
+      const mapped = phs.map(mapBackendPharmacy);
+      setPharmacies(mapped);
+      saveCachedPharmacies(mapped);
     } catch (err) {
       console.error("Failed to add pharmacy:", err);
       toast.error("Failed to create pharmacy");
@@ -279,11 +296,14 @@ export function SuperAdminProvider({
     try {
       const actor = await getActor();
       await actor.deletePharmacy(id);
-      // Remove selected pharmacy if it's the deleted one
       if (localStorage.getItem("pw_selected_pharmacy") === id) {
         localStorage.removeItem("pw_selected_pharmacy");
       }
-      setPharmacies((prev) => prev.filter((p) => p.id !== id));
+      setPharmacies((prev) => {
+        const updated = prev.filter((p) => p.id !== id);
+        saveCachedPharmacies(updated);
+        return updated;
+      });
     } catch (err) {
       console.error("Failed to delete pharmacy:", err);
       toast.error("Failed to delete pharmacy");
@@ -295,7 +315,6 @@ export function SuperAdminProvider({
     async (id: string, durationMonths: number) => {
       try {
         const actor = await getActor();
-        // Find current pharmacy to compute base date
         const current = pharmacies.find((p) => p.id === id);
         const baseDate =
           current?.status === "active" &&
@@ -305,11 +324,9 @@ export function SuperAdminProvider({
             : new Date();
         const expiry = new Date(baseDate);
         expiry.setMonth(expiry.getMonth() + durationMonths);
-
         await actor.updatePharmacyStatus(id, "active", expiry.toISOString());
-
-        setPharmacies((prev) =>
-          prev.map((p) =>
+        setPharmacies((prev) => {
+          const updated = prev.map((p) =>
             p.id === id
               ? {
                   ...p,
@@ -317,8 +334,10 @@ export function SuperAdminProvider({
                   expiresAt: expiry.toISOString(),
                 }
               : p,
-          ),
-        );
+          );
+          saveCachedPharmacies(updated);
+          return updated;
+        });
       } catch (err) {
         console.error("Failed to activate pharmacy:", err);
         toast.error("Failed to activate pharmacy");
@@ -332,11 +351,13 @@ export function SuperAdminProvider({
     try {
       const actor = await getActor();
       await actor.updatePharmacyStatus(id, "inactive", "");
-      setPharmacies((prev) =>
-        prev.map((p) =>
+      setPharmacies((prev) => {
+        const updated = prev.map((p) =>
           p.id === id ? { ...p, status: "inactive" as const } : p,
-        ),
-      );
+        );
+        saveCachedPharmacies(updated);
+        return updated;
+      });
     } catch (err) {
       console.error("Failed to deactivate pharmacy:", err);
       toast.error("Failed to deactivate pharmacy");
@@ -364,9 +385,7 @@ export function SuperAdminProvider({
           const actor = await getActor();
           const sa = await actor.getSuperAdmin();
           if (sa) setSuperAdmin(sa);
-        } catch (_) {
-          // ignore secondary fetch error
-        }
+        } catch (_) {}
       }
       return success;
     },
@@ -402,7 +421,6 @@ export function SuperAdminProvider({
     async (pharmacyId: string, newPassword: string): Promise<boolean> => {
       try {
         const actor = await getActor();
-        // Get all accounts for this pharmacy and find the admin account
         const accounts = await actor.getAccounts(pharmacyId);
         const adminAccount = accounts.find((a) => a.role === "admin");
         if (!adminAccount) {
