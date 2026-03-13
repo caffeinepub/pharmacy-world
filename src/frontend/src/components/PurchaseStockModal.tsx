@@ -27,7 +27,7 @@ interface FormData {
   purchaseDate: string;
 }
 
-type EntryMode = "tablets" | "boxes";
+type EntryMode = "tablets" | "boxes" | "syrup";
 
 const COMMON_BOX_SIZES = [10, 14, 15, 20, 28, 30, 60, 100];
 
@@ -58,6 +58,10 @@ export function PurchaseStockModal({
   const [customTabletsPerBox, setCustomTabletsPerBox] = useState("");
   const [useCustomPerBox, setUseCustomPerBox] = useState(false);
 
+  // Syrup mode state
+  const [syrupBottleQty, setSyrupBottleQty] = useState("");
+  const [syrupVolumeMl, setSyrupVolumeMl] = useState("");
+
   // Sale price (always shown, auto-calculated)
   const [newSalePrice, setNewSalePrice] = useState("");
 
@@ -77,6 +81,8 @@ export function PurchaseStockModal({
       setTabletsPerBox("30");
       setCustomTabletsPerBox("");
       setUseCustomPerBox(false);
+      setSyrupBottleQty("");
+      setSyrupVolumeMl("");
       setNewSalePrice("");
       setSalePriceManuallyEdited(false);
     }
@@ -89,9 +95,12 @@ export function PurchaseStockModal({
   const totalQty =
     entryMode === "tablets"
       ? Number(tabletQty) || 0
-      : (Number(boxQty) || 0) * resolvedTabletsPerBox;
+      : entryMode === "boxes"
+        ? (Number(boxQty) || 0) * resolvedTabletsPerBox
+        : Number(syrupBottleQty) || 0;
 
-  // If box mode: user enters price per BOX, convert to per-tablet
+  // If box mode: user enters price per BOX, convert to per-tablet for storage
+  // Syrup mode: price per bottle
   const rawPrice = Number(form.purchasePrice);
   const pp =
     entryMode === "boxes" && resolvedTabletsPerBox > 0
@@ -120,9 +129,13 @@ export function PurchaseStockModal({
     if (entryMode === "tablets") {
       if (!tabletQty || Number(tabletQty) <= 0)
         newErrors.tabletQty = "Must be > 0";
-    } else {
+    } else if (entryMode === "boxes") {
       if (!boxQty || Number(boxQty) <= 0) newErrors.boxQty = "Must be > 0";
       if (resolvedTabletsPerBox <= 0) newErrors.tabletsPerBox = "Must be > 0";
+    } else {
+      // syrup
+      if (!syrupBottleQty || Number(syrupBottleQty) <= 0)
+        newErrors.syrupBottleQty = "Must be > 0";
     }
 
     if (!form.purchasePrice || Number.isNaN(pp) || pp < 0)
@@ -208,7 +221,7 @@ export function PurchaseStockModal({
             {/* Entry mode toggle */}
             <div className="space-y-2">
               <Label>Quantity Entry Mode</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setEntryMode("tablets")}
@@ -217,6 +230,7 @@ export function PurchaseStockModal({
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background border-border text-foreground hover:bg-muted"
                   }`}
+                  data-ocid="purchase.mode_tablets.button"
                 >
                   Tablet / Unit
                 </button>
@@ -228,8 +242,21 @@ export function PurchaseStockModal({
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background border-border text-foreground hover:bg-muted"
                   }`}
+                  data-ocid="purchase.mode_boxes.button"
                 >
                   Full Box
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryMode("syrup")}
+                  className={`py-2 px-3 rounded-md border text-sm font-medium transition-colors ${
+                    entryMode === "syrup"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-foreground hover:bg-muted"
+                  }`}
+                  data-ocid="purchase.mode_syrup.button"
+                >
+                  Syrup / Liquid
                 </button>
               </div>
             </div>
@@ -398,13 +425,101 @@ export function PurchaseStockModal({
               </div>
             )}
 
+            {/* Syrup mode */}
+            {entryMode === "syrup" && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="syrupBottleQty">No. of Bottles *</Label>
+                    <Input
+                      id="syrupBottleQty"
+                      type="number"
+                      placeholder="0"
+                      value={syrupBottleQty}
+                      onChange={(e) => setSyrupBottleQty(e.target.value)}
+                      className={
+                        errors.syrupBottleQty ? "border-destructive" : ""
+                      }
+                      min="1"
+                      data-ocid="purchase.syrup_bottles.input"
+                    />
+                    {errors.syrupBottleQty && (
+                      <p className="text-xs text-destructive">
+                        {errors.syrupBottleQty}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="purchaseDateSyrup">Purchase Date *</Label>
+                    <Input
+                      id="purchaseDateSyrup"
+                      type="date"
+                      value={form.purchaseDate}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          purchaseDate: e.target.value,
+                        }))
+                      }
+                      className={
+                        errors.purchaseDate ? "border-destructive" : ""
+                      }
+                    />
+                    {errors.purchaseDate && (
+                      <p className="text-xs text-destructive">
+                        {errors.purchaseDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="syrupVolumeMl">
+                    Volume per Bottle (ml) — Optional
+                  </Label>
+                  <Input
+                    id="syrupVolumeMl"
+                    type="number"
+                    placeholder="e.g. 120"
+                    value={syrupVolumeMl}
+                    onChange={(e) => setSyrupVolumeMl(e.target.value)}
+                    min="1"
+                    data-ocid="purchase.syrup_volume.input"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sirf record rakhne ke liye — optional hai
+                  </p>
+                </div>
+                {Number(syrupBottleQty) > 0 && (
+                  <div className="bg-muted/50 rounded-md px-3 py-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Total bottles:{" "}
+                    </span>
+                    <span className="font-bold text-primary">
+                      {syrupBottleQty} bottles
+                    </span>
+                    {syrupVolumeMl && Number(syrupVolumeMl) > 0 && (
+                      <span className="text-muted-foreground ml-2">
+                        × {syrupVolumeMl} ml ={" "}
+                        {(
+                          Number(syrupBottleQty) * Number(syrupVolumeMl)
+                        ).toFixed(0)}{" "}
+                        ml total
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Pricing */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="purchasePrice">
                   {entryMode === "boxes"
                     ? "Purchase Price/Box (Rs.) *"
-                    : "Purchase Price/Tablet (Rs.) *"}
+                    : entryMode === "syrup"
+                      ? "Purchase Price/Bottle (Rs.) *"
+                      : "Purchase Price/Tablet (Rs.) *"}
                 </Label>
                 <Input
                   id="purchasePrice"
@@ -448,14 +563,16 @@ export function PurchaseStockModal({
               </div>
             </div>
 
-            {/* Sale Price per Tablet - always visible, auto-calculated */}
+            {/* Sale Price per unit - always visible, auto-calculated */}
             <div className="space-y-1.5 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-1">
                 <Label
                   htmlFor="newSalePrice"
                   className="text-amber-900 font-semibold"
                 >
-                  Sale Price/Tablet (Rs.) *
+                  {entryMode === "syrup"
+                    ? "Sale Price/Bottle (Rs.) *"
+                    : "Sale Price/Tablet (Rs.) *"}
                 </Label>
                 <span className="text-[11px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full font-medium">
                   Auto-calculated
@@ -476,7 +593,8 @@ export function PurchaseStockModal({
               />
               <div className="flex items-center justify-between text-xs text-amber-700 mt-0.5">
                 <span>
-                  Current: Rs. {(medicine?.price ?? 0).toFixed(2)}/tab
+                  Current: Rs. {(medicine?.price ?? 0).toFixed(2)}
+                  {entryMode === "syrup" ? "/bottle" : "/tab"}
                 </span>
                 {netPrice > 0 && (
                   <button
@@ -508,7 +626,42 @@ export function PurchaseStockModal({
                 <p className="font-semibold text-foreground text-xs uppercase tracking-wide mb-2">
                   Purchase Summary
                 </p>
-                {entryMode === "boxes" && resolvedTabletsPerBox > 0 ? (
+                {entryMode === "syrup" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Price/Bottle
+                      </span>
+                      <span className="font-mono">
+                        Rs. {rawPrice.toFixed(2)}
+                      </span>
+                    </div>
+                    {disc > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Discount ({disc}%)</span>
+                        <span className="font-mono">
+                          - Rs. {(rawPrice * (disc / 100)).toFixed(2)}/bottle
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Net Price/Bottle
+                      </span>
+                      <span className="font-mono font-semibold">
+                        Rs. {netPrice.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-border pt-1.5 mt-1">
+                      <span className="font-semibold">
+                        Total Cost ({totalQty} bottles)
+                      </span>
+                      <span className="font-mono font-bold text-primary">
+                        Rs. {totalCost.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : entryMode === "boxes" && resolvedTabletsPerBox > 0 ? (
                   <>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Price/Box</span>
@@ -567,14 +720,17 @@ export function PurchaseStockModal({
                     </div>
                   </>
                 )}
-                <div className="flex justify-between border-t border-border pt-1.5 mt-1">
-                  <span className="font-semibold">
-                    Total Cost ({totalQty} tablets)
-                  </span>
-                  <span className="font-mono font-bold text-primary">
-                    Rs. {totalCost.toFixed(2)}
-                  </span>
-                </div>
+                {entryMode !== "syrup" && (
+                  <div className="flex justify-between border-t border-border pt-1.5 mt-1">
+                    <span className="font-semibold">
+                      Total Cost ({totalQty}{" "}
+                      {entryMode === "boxes" ? "tablets" : "tablets"})
+                    </span>
+                    <span className="font-mono font-bold text-primary">
+                      Rs. {totalCost.toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

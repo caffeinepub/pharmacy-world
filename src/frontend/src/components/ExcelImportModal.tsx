@@ -70,7 +70,15 @@ function getVal(row: Record<string, unknown>, ...keys: string[]): unknown {
 
 function toNumber(val: unknown): number | null {
   if (val === undefined || val === null || val === "") return null;
-  const n = Number(val);
+  // Handle already-numeric values
+  if (typeof val === "number") return Number.isNaN(val) ? null : val;
+  // Handle string values: strip commas, spaces, currency symbols and parse
+  const cleaned = String(val)
+    .trim()
+    .replace(/,/g, "")
+    .replace(/[^\d.\-]/g, "");
+  if (cleaned === "") return null;
+  const n = Number(cleaned);
   return Number.isNaN(n) ? null : n;
 }
 
