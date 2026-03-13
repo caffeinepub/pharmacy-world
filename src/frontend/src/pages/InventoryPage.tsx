@@ -53,6 +53,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { BulkMedicineModal } from "../components/BulkMedicineModal";
 import { ExcelImportModal } from "../components/ExcelImportModal";
 import { MedicineFormModal } from "../components/MedicineFormModal";
 import { PurchaseStockModal } from "../components/PurchaseStockModal";
@@ -78,6 +79,7 @@ export function InventoryPage() {
   const [purchaseMed, setPurchaseMed] = useState<Medicine | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
   const handleExportExcel = () => {
     try {
@@ -298,6 +300,15 @@ export function InventoryPage() {
           >
             <Plus className="w-4 h-4" />
             Add Medicine
+          </Button>
+          <Button
+            onClick={() => setBulkAddOpen(true)}
+            variant="outline"
+            className="gap-2"
+            data-ocid="inventory.bulk_add.button"
+          >
+            <Plus className="w-4 h-4" />
+            Bulk Add
           </Button>
         </div>
       </div>
@@ -783,6 +794,10 @@ export function InventoryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <BulkMedicineModal
+        open={bulkAddOpen}
+        onClose={() => setBulkAddOpen(false)}
+      />
     </div>
   );
 }
