@@ -108,19 +108,34 @@ function parseRows(data: Record<string, unknown>[]): ParsedRow[] {
       "purchasePrice",
       "purchase_price",
       "purchaseprice",
+      "Purchase Price",
       "buyPrice",
       "buyprice",
       "costPrice",
       "costprice",
+      "purchaserate",
+      "purchase_rate",
+      "purchasepriceperunit",
+      "purchase_price_per_unit",
     );
     const rawRetailPrice = getVal(
       row,
       "retailPrice",
       "retail_price",
       "retailprice",
+      "Retail Price",
       "price",
       "sellingPrice",
       "sellingprice",
+      "salePrice",
+      "sale_price",
+      "saleprice",
+      "Sale Price",
+      "salepricepertablet",
+      "sale_price_per_tablet",
+      "salepricetablet",
+      "mrp",
+      "MRP",
     );
 
     const purchasePriceNum = toNumber(rawPurchasePrice);
@@ -153,6 +168,8 @@ function parseRows(data: Record<string, unknown>[]): ParsedRow[] {
       "expiry",
       "expirydate",
       "exp",
+      "Expiry",
+      "Expiry Date",
     );
     const expiryDate = toStr(rawExpiry);
 
@@ -175,6 +192,8 @@ function parseRows(data: Record<string, unknown>[]): ParsedRow[] {
       "rack_number",
       "rack",
       "racknumber",
+      "Rack",
+      "Rack Number",
     );
     const rackNumber = rawRack ? toStr(rawRack) : undefined;
 
@@ -197,15 +216,15 @@ function parseRows(data: Record<string, unknown>[]): ParsedRow[] {
 
 function downloadSampleTemplate() {
   const headers = [
-    "name",
-    "category",
-    "manufacturer",
-    "purchasePrice",
-    "retailPrice",
-    "quantity",
-    "expiryDate",
-    "lowStockThreshold",
-    "rackNumber",
+    "Name",
+    "Category",
+    "Manufacturer",
+    "Purchase Price",
+    "Sale Price",
+    "Quantity",
+    "Expiry Date",
+    "Low Stock Threshold",
+    "Rack Number",
   ];
   const example1 = [
     "Paracetamol 500mg",
@@ -233,7 +252,7 @@ function downloadSampleTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2]);
 
   // Set column widths
-  ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 4, 16) }));
+  ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 4, 18) }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Medicines");
@@ -241,7 +260,7 @@ function downloadSampleTemplate() {
 }
 
 export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
-  const { addMedicine } = useData();
+  const { addMedicine, updateMedicine, medicines } = useData();
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
@@ -326,31 +345,49 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
   const handleImport = useCallback(async () => {
     if (validRows.length === 0) return;
     setIsImporting(true);
+    let addedCount = 0;
+    let updatedCount = 0;
     try {
       for (const row of validRows) {
-        addMedicine({
-          name: row.name,
-          category: row.category,
-          manufacturer: row.manufacturer,
-          purchasePrice: row.purchasePrice,
-          retailPrice: row.retailPrice,
-          price: row.retailPrice,
-          quantity: row.quantity,
-          expiryDate: row.expiryDate,
-          lowStockThreshold: row.lowStockThreshold,
-          rackNumber: row.rackNumber,
-        });
+        // Check if a medicine with same name already exists (case-insensitive)
+        const existingMed = medicines.find(
+          (m) => m.name.trim().toLowerCase() === row.name.trim().toLowerCase(),
+        );
+        if (existingMed) {
+          // Add quantity to existing medicine instead of creating a duplicate
+          await updateMedicine(existingMed.id, {
+            quantity: existingMed.quantity + row.quantity,
+          });
+          updatedCount++;
+        } else {
+          await addMedicine({
+            name: row.name,
+            category: row.category,
+            manufacturer: row.manufacturer,
+            purchasePrice: row.purchasePrice,
+            retailPrice: row.retailPrice,
+            price: row.retailPrice,
+            quantity: row.quantity,
+            expiryDate: row.expiryDate,
+            lowStockThreshold: row.lowStockThreshold,
+            rackNumber: row.rackNumber,
+          });
+          addedCount++;
+        }
       }
-      toast.success(
-        `${validRows.length} medicine${validRows.length !== 1 ? "s" : ""} imported successfully!`,
-      );
+
+      // Build success message
+      const parts: string[] = [];
+      if (addedCount > 0) parts.push(`${addedCount} added`);
+      if (updatedCount > 0) parts.push(`${updatedCount} updated`);
+      toast.success(`Import complete: ${parts.join(", ")}`);
       handleClose();
     } catch {
       toast.error("Import failed. Please try again.");
     } finally {
       setIsImporting(false);
     }
-  }, [validRows, addMedicine, handleClose]);
+  }, [validRows, medicines, addMedicine, updateMedicine, handleClose]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -374,49 +411,79 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Upload zone */}
           {!hasFile ? (
-            <label
-              htmlFor="excel-file-input"
-              className={`relative border-2 border-dashed rounded-xl transition-all cursor-pointer block ${
-                isDragging
-                  ? "border-primary bg-primary/5 scale-[1.01]"
-                  : "border-border hover:border-primary/50 hover:bg-muted/30"
-              }`}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-            >
-              <input
-                id="excel-file-input"
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                <div
-                  className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors ${
-                    isDragging ? "bg-primary/20" : "bg-muted"
-                  }`}
-                >
-                  <Upload
-                    className={`w-8 h-8 ${isDragging ? "text-primary" : "text-muted-foreground"}`}
-                  />
+            <>
+              <label
+                htmlFor="excel-file-input"
+                className={`relative border-2 border-dashed rounded-xl transition-all cursor-pointer block ${
+                  isDragging
+                    ? "border-primary bg-primary/5 scale-[1.01]"
+                    : "border-border hover:border-primary/50 hover:bg-muted/30"
+                }`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <input
+                  id="excel-file-input"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                  <div
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors ${
+                      isDragging ? "bg-primary/20" : "bg-muted"
+                    }`}
+                  >
+                    <Upload
+                      className={`w-8 h-8 ${isDragging ? "text-primary" : "text-muted-foreground"}`}
+                    />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground mb-1">
+                    {isDragging
+                      ? "Drop your file here"
+                      : "Drag & drop your Excel file here"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    or click to browse — supports .xlsx, .xls, .csv
+                  </p>
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-muted transition-colors pointer-events-none">
+                    <Upload className="w-3.5 h-3.5" />
+                    Choose File
+                  </span>
                 </div>
-                <p className="text-sm font-semibold text-foreground mb-1">
-                  {isDragging
-                    ? "Drop your file here"
-                    : "Drag & drop your Excel file here"}
+              </label>
+              {/* Column name hint */}
+              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1.5">
+                  ✅ Accepted column names in your Excel file:
                 </p>
-                <p className="text-xs text-muted-foreground mb-4">
-                  or click to browse — supports .xlsx, .xls, .csv
-                </p>
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-muted transition-colors pointer-events-none">
-                  <Upload className="w-3.5 h-3.5" />
-                  Choose File
-                </span>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-blue-600 dark:text-blue-400">
+                  <span>
+                    <strong>Medicine Name:</strong> Name
+                  </span>
+                  <span>
+                    <strong>Quantity:</strong> Quantity, Qty, Stock
+                  </span>
+                  <span>
+                    <strong>Purchase Price:</strong> Purchase Price,
+                    purchasePrice, Buy Price, Cost Price
+                  </span>
+                  <span>
+                    <strong>Sale Price:</strong> Sale Price, salePrice, Retail
+                    Price, Price, MRP
+                  </span>
+                  <span>
+                    <strong>Expiry:</strong> Expiry, Expiry Date, Exp
+                  </span>
+                  <span>
+                    <strong>Rack:</strong> Rack, Rack Number
+                  </span>
+                </div>
               </div>
-            </label>
+            </>
           ) : (
             <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-muted/40 border border-border">
               <FileSpreadsheet className="w-5 h-5 text-primary shrink-0" />
@@ -491,7 +558,7 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
                         Purchase
                       </TableHead>
                       <TableHead className="text-xs font-semibold text-right">
-                        Retail
+                        Sale
                       </TableHead>
                       <TableHead className="text-xs font-semibold text-center">
                         Qty
@@ -505,86 +572,106 @@ export function ExcelImportModal({ open, onClose }: ExcelImportModalProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {previewRows.map((row) => (
-                      <TableRow
-                        key={row.rowIndex}
-                        className={
-                          row.valid
-                            ? "hover:bg-muted/20"
-                            : "bg-destructive/5 hover:bg-destructive/8"
-                        }
-                      >
-                        <TableCell className="text-xs text-muted-foreground w-10">
-                          {row.rowIndex}
-                        </TableCell>
-                        <TableCell>
-                          {row.valid ? (
-                            <Badge
-                              variant="outline"
-                              className="text-xs gap-1 border-success/40 text-success bg-success/5 py-0"
-                            >
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                              OK
-                            </Badge>
-                          ) : (
-                            <div className="flex flex-col gap-0.5">
-                              <Badge
-                                variant="outline"
-                                className="text-xs gap-1 border-destructive/40 text-destructive bg-destructive/5 py-0 w-fit"
-                              >
-                                <AlertCircle className="w-2.5 h-2.5" />
-                                Error
-                              </Badge>
-                              {row.errors.map((err) => (
-                                <span
-                                  key={err}
-                                  className="text-[10px] text-destructive leading-tight"
-                                >
-                                  {err}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell
-                          className={`text-xs font-medium ${!row.name ? "text-destructive italic" : ""}`}
+                    {previewRows.map((row) => {
+                      const isDuplicate =
+                        row.valid &&
+                        medicines.some(
+                          (m) =>
+                            m.name.trim().toLowerCase() ===
+                            row.name.trim().toLowerCase(),
+                        );
+                      return (
+                        <TableRow
+                          key={row.rowIndex}
+                          className={
+                            row.valid
+                              ? isDuplicate
+                                ? "bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                : "hover:bg-muted/20"
+                              : "bg-destructive/5 hover:bg-destructive/8"
+                          }
                         >
-                          {row.name || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {row.category}
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-mono text-muted-foreground">
-                          Rs.{row.purchasePrice.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-mono">
-                          Rs.{row.retailPrice.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-xs text-center">
-                          <span
-                            className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-full font-bold text-[10px] ${
-                              row.quantity <= 0
-                                ? "bg-muted text-muted-foreground"
-                                : "bg-primary/10 text-primary"
-                            }`}
+                          <TableCell className="text-xs text-muted-foreground w-10">
+                            {row.rowIndex}
+                          </TableCell>
+                          <TableCell>
+                            {row.valid ? (
+                              isDuplicate ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs gap-1 border-amber-400/50 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 py-0"
+                                >
+                                  +Qty
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs gap-1 border-success/40 text-success bg-success/5 py-0"
+                                >
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  New
+                                </Badge>
+                              )
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs gap-1 border-destructive/40 text-destructive bg-destructive/5 py-0 w-fit"
+                                >
+                                  <AlertCircle className="w-2.5 h-2.5" />
+                                  Error
+                                </Badge>
+                                {row.errors.map((err) => (
+                                  <span
+                                    key={err}
+                                    className="text-[10px] text-destructive leading-tight"
+                                  >
+                                    {err}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={`text-xs font-medium ${!row.name ? "text-destructive italic" : ""}`}
                           >
-                            {row.quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {row.expiryDate || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {row.rackNumber ? (
-                            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                              {row.rackNumber}
+                            {row.name || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {row.category}
+                          </TableCell>
+                          <TableCell className="text-xs text-right font-mono text-muted-foreground">
+                            Rs.{row.purchasePrice.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs text-right font-mono">
+                            Rs.{row.retailPrice.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs text-center">
+                            <span
+                              className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-full font-bold text-[10px] ${
+                                row.quantity <= 0
+                                  ? "bg-muted text-muted-foreground"
+                                  : "bg-primary/10 text-primary"
+                              }`}
+                            >
+                              {row.quantity}
                             </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {row.expiryDate || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {row.rackNumber ? (
+                              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                {row.rackNumber}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </ScrollArea>
